@@ -14,7 +14,13 @@ export const load: PageServerLoad = async ({ locals: { safeGetSession, supabase 
 		.eq('id', user.id)
 		.single();
 
-	return { user, profile };
+	const { data: posts } = await supabase
+		.from('posts')
+		.select('*, post_media(*)')
+		.eq('author_id', user.id)
+		.order('created_at', { ascending: false });
+
+	return { user, profile, posts: posts ?? [] };
 };
 
 export const actions: Actions = {

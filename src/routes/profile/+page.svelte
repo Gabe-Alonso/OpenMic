@@ -3,6 +3,7 @@
 	import { invalidateAll } from '$app/navigation';
 	import { createClient } from '$lib/supabase';
 	import LocationSearch from '$lib/components/LocationSearch.svelte';
+	import PostCard from '$lib/components/PostCard.svelte';
 	import type { PageData, ActionData } from './$types';
 
 	let { data, form }: { data: PageData; form: ActionData } = $props();
@@ -163,15 +164,23 @@
 	<div class="card">
 		<div class="section-header">
 			<h2 class="card-title">Posts</h2>
-			<button class="new-post-btn">+ New Post</button>
+			<a href="/post/new" class="new-post-btn">+ New Post</a>
 		</div>
 
-		<div class="empty-state">
-			<span class="empty-icon">🎵</span>
-			<p class="empty-title">Nothing here yet</p>
-			<p class="empty-sub">Share your music, upcoming shows, or anything with the community.</p>
-			<button class="empty-cta">Create your first post</button>
-		</div>
+		{#if data.posts.length > 0}
+			<div class="posts-list">
+				{#each data.posts as post}
+					<PostCard {post} />
+				{/each}
+			</div>
+		{:else}
+			<div class="empty-state">
+				<span class="empty-icon">🎵</span>
+				<p class="empty-title">Nothing here yet</p>
+				<p class="empty-sub">Share your music, upcoming shows, or anything with the community.</p>
+				<a href="/post/new" class="empty-cta">Create your first post</a>
+			</div>
+		{/if}
 	</div>
 
 	<!-- Account Settings -->
@@ -485,6 +494,8 @@
 	}
 
 	.new-post-btn {
+		display: inline-block;
+		text-decoration: none;
 		background: var(--color-primary-light);
 		color: var(--color-primary);
 		border: 1.5px solid var(--color-primary-light);
@@ -499,6 +510,12 @@
 		background: var(--color-primary);
 		border-color: var(--color-primary);
 		color: white;
+	}
+
+	.posts-list {
+		display: flex;
+		flex-direction: column;
+		gap: 12px;
 	}
 
 	.empty-state {
@@ -529,6 +546,8 @@
 
 	.empty-cta {
 		margin-top: 8px;
+		display: inline-block;
+		text-decoration: none;
 		background: none;
 		border: 1.5px solid var(--color-border);
 		border-radius: var(--radius-sm);

@@ -1,9 +1,10 @@
 <script lang="ts">
+	import PostCard from '$lib/components/PostCard.svelte';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
 
-	const profile = data.profile;
+	const profile = $derived(data.profile);
 
 	function getInitial(): string {
 		const name = profile?.full_name || profile?.id;
@@ -74,11 +75,19 @@
 
 	<div class="card">
 		<h2 class="card-title">Posts</h2>
-		<div class="empty-state">
-			<span class="empty-icon">🎵</span>
-			<p class="empty-title">Nothing here yet</p>
-			<p class="empty-sub">This artist hasn't posted anything yet.</p>
-		</div>
+		{#if data.posts.length > 0}
+			<div class="posts-list">
+				{#each data.posts as post}
+					<PostCard {post} />
+				{/each}
+			</div>
+		{:else}
+			<div class="empty-state">
+				<span class="empty-icon">🎵</span>
+				<p class="empty-title">Nothing here yet</p>
+				<p class="empty-sub">This artist hasn't posted anything yet.</p>
+			</div>
+		{/if}
 	</div>
 
 </div>
@@ -205,6 +214,12 @@
 	}
 
 	/* Posts */
+	.posts-list {
+		display: flex;
+		flex-direction: column;
+		gap: 12px;
+	}
+
 	.card-title {
 		font-size: 1.15rem;
 		font-weight: 700;

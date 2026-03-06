@@ -10,5 +10,11 @@ export const load: PageServerLoad = async ({ params, locals: { supabase } }) => 
 
 	if (!profile) throw error(404, 'Profile not found');
 
-	return { profile };
+	const { data: posts } = await supabase
+		.from('posts')
+		.select('*, post_media(*)')
+		.eq('author_id', params.id)
+		.order('created_at', { ascending: false });
+
+	return { profile, posts: posts ?? [] };
 };
