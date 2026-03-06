@@ -1,29 +1,34 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
+	import { untrack } from 'svelte';
 	import MediaCarousel from '$lib/components/MediaCarousel.svelte';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
 
 	const post = $derived(data.post);
-	const profile = post.profiles as { id: string; full_name: string | null; avatar_url: string | null; location: string | null } | null;
+	const profile = $derived(
+		post.profiles as { id: string; full_name: string | null; avatar_url: string | null; location: string | null } | null
+	);
+	const sortedMedia = $derived(
+		[...(post.post_media ?? [])].sort((a: any, b: any) => a.order_index - b.order_index)
+	);
+	const carouselItems = $derived.by((): { type: 'youtube' | 'image'; src: string }[] => {
+		const items: { type: 'youtube' | 'image'; src: string }[] = [];
+		for (const m of sortedMedia) {
+			if (m.media_type === 'image') items.push({ type: 'image', src: m.url });
+		}
+		if (post.youtube_url) {
+			const match = post.youtube_url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
+			if (match) items.push({ type: 'youtube', src: `https://www.youtube.com/embed/${match[1]}` });
+		}
+		return items;
+	});
+	const hasMedia = $derived(carouselItems.length > 0);
 
-	const sortedMedia = [...(post.post_media ?? [])].sort((a: any, b: any) => a.order_index - b.order_index);
-
-	const carouselItems: { type: 'youtube' | 'image'; src: string }[] = [];
-	for (const m of sortedMedia) {
-		if (m.media_type === 'image') carouselItems.push({ type: 'image', src: m.url });
-	}
-	if (post.youtube_url) {
-		const match = post.youtube_url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
-		if (match) carouselItems.push({ type: 'youtube', src: `https://www.youtube.com/embed/${match[1]}` });
-	}
-
-	const hasMedia = carouselItems.length > 0;
-
-	// Like state — initialized from server, updated optimistically
-	let likeCount = $state(data.likeCount);
-	let userLiked = $state(data.userLiked);
+	// Like state — seed from server once, then updated optimistically client-side
+	let likeCount = $state(untrack(() => data.likeCount));
+	let userLiked = $state(untrack(() => data.userLiked));
 	let liking = $state(false);
 	let showLikers = $state(false);
 	let copied = $state(false);
@@ -69,6 +74,14 @@
 		return name?.[0]?.toUpperCase() ?? '?';
 	}
 
+	function formatMutuals(mutuals: { id: string; full_name: string | null }[]): string {
+		const shown = mutuals.slice(0, 3);
+		const names = shown.map((m) => m.full_name ?? 'someone').join(', ');
+		const extra = mutuals.length - 3;
+		if (extra > 0) return `${names} ... and ${extra} more`;
+		return names;
+	}
+
 	function timeAgo(dateStr: string): string {
 		const diff = Date.now() - new Date(dateStr).getTime();
 		const mins = Math.floor(diff / 60000);
@@ -83,28 +96,54 @@
 
 <div class="post-page">
 	<div class="post-header">
-		<a href="/profile/{profile?.id}" class="author-link">
-			<div class="author-avatar">
-				{#if profile?.avatar_url}
-					<img src={profile.avatar_url} alt={profile.full_name ?? ''} />
-				{:else}
-					<div class="avatar-initial">{getInitial()}</div>
-				{/if}
+		<div class="post-header-top">
+			<a href="/profile/{profile?.id}" class="author-link">
+				<div class="author-avatar">
+					{#if profile?.avatar_url}
+						<img src={profile.avatar_url} alt={profile.full_name ?? ''} />
+					{:else}
+						<div class="avatar-initial">{getInitial()}</div>
+					{/if}
+				</div>
+				<div class="author-info">
+					<div class="author-name-row">
+						<span class="author-name">{profile?.full_name ?? 'Anonymous Artist'}</span>
+						<span class="author-stats">
+							<strong>{data.authorFollowerCount}</strong> followers
+							<span class="stats-dot">·</span>
+							<strong>{data.authorFollowingCount}</strong> following
+						</span>
+					</div>
+					{#if profile?.location}
+						<span class="author-location">
+							<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+								<path d="M20 10c0 6-8 13-8 13s-8-7-8-13a8 8 0 0 1 16 0Z" />
+								<circle cx="12" cy="10" r="3" />
+							</svg>
+							{profile.location}
+						</span>
+					{/if}
+				</div>
+			</a>
+			<span class="post-date">{timeAgo(post.created_at)}</span>
+		</div>
+
+		{#if data.mutuals.length > 0}
+			<div class="post-mutuals">
+				<div class="mutual-avatars">
+					{#each data.mutuals.slice(0, 3) as m}
+						<div class="mutual-avatar" title={m.full_name ?? ''}>
+							{#if m.avatar_url}
+								<img src={m.avatar_url} alt={m.full_name ?? ''} />
+							{:else}
+								<div class="mutual-initial">{m.full_name?.[0]?.toUpperCase() ?? '?'}</div>
+							{/if}
+						</div>
+					{/each}
+				</div>
+				<span class="mutuals-text">Followed by {formatMutuals(data.mutuals)}</span>
 			</div>
-			<div class="author-info">
-				<span class="author-name">{profile?.full_name ?? 'Anonymous Artist'}</span>
-				{#if profile?.location}
-					<span class="author-location">
-						<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-							<path d="M20 10c0 6-8 13-8 13s-8-7-8-13a8 8 0 0 1 16 0Z" />
-							<circle cx="12" cy="10" r="3" />
-						</svg>
-						{profile.location}
-					</span>
-				{/if}
-			</div>
-		</a>
-		<span class="post-date">{timeAgo(post.created_at)}</span>
+		{/if}
 	</div>
 
 	<div class="post-body" class:no-media={!hasMedia}>
@@ -169,7 +208,7 @@
 <!-- Likers modal -->
 {#if showLikers}
 	<div class="modal-backdrop" onclick={() => (showLikers = false)} role="presentation">
-		<div class="modal" onclick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label="People who liked this">
+		<div class="modal" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label="People who liked this" tabindex="-1">
 			<div class="modal-header">
 				<h2>Liked by</h2>
 				<button class="modal-close" onclick={() => (showLikers = false)} aria-label="Close">
@@ -180,7 +219,7 @@
 			</div>
 			<div class="likers-list">
 				{#each data.likers as liker}
-					{@const p = liker.profiles as { id: string; full_name: string | null; avatar_url: string | null } | null}
+					{@const p = liker.profiles as any}
 					<a href="/profile/{p?.id}" class="liker-item" onclick={() => (showLikers = false)}>
 						<div class="liker-avatar">
 							{#if p?.avatar_url}
@@ -209,13 +248,20 @@
 	/* Author header */
 	.post-header {
 		display: flex;
-		align-items: center;
-		justify-content: space-between;
+		flex-direction: column;
+		gap: 0;
 		background: var(--color-surface);
 		border: 1px solid var(--color-border);
 		border-radius: var(--radius-lg);
-		padding: 16px 20px;
+		overflow: hidden;
 		box-shadow: var(--shadow-sm);
+	}
+
+	.post-header-top {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		padding: 16px 20px;
 	}
 
 	.author-link {
@@ -255,17 +301,42 @@
 	.author-info {
 		display: flex;
 		flex-direction: column;
-		gap: 2px;
+		gap: 3px;
+	}
+
+	.author-name-row {
+		display: flex;
+		align-items: baseline;
+		flex-wrap: wrap;
+		gap: 8px;
 	}
 
 	.author-name {
 		font-weight: 600;
 		font-size: 0.95rem;
 		transition: color 0.15s;
+		flex-shrink: 0;
 	}
 
 	.author-link:hover .author-name {
 		color: var(--color-primary);
+	}
+
+	.author-stats {
+		display: flex;
+		align-items: center;
+		gap: 4px;
+		font-size: 0.78rem;
+		color: var(--color-text-muted);
+	}
+
+	.author-stats strong {
+		color: var(--color-text);
+		font-weight: 600;
+	}
+
+	.stats-dot {
+		opacity: 0.5;
 	}
 
 	.author-location {
@@ -278,6 +349,59 @@
 
 	.post-date {
 		font-size: 0.8rem;
+		color: var(--color-text-muted);
+		flex-shrink: 0;
+	}
+
+	/* Mutuals in post header */
+	.post-mutuals {
+		display: flex;
+		align-items: center;
+		gap: 10px;
+		padding: 10px 20px;
+		border-top: 1px solid var(--color-border);
+		background: var(--color-bg);
+	}
+
+	.mutual-avatars {
+		display: flex;
+		align-items: center;
+		flex-shrink: 0;
+	}
+
+	.mutual-avatar {
+		width: 22px;
+		height: 22px;
+		border-radius: 50%;
+		overflow: hidden;
+		border: 2px solid var(--color-surface);
+		flex-shrink: 0;
+	}
+
+	.mutual-avatar + .mutual-avatar {
+		margin-left: -6px;
+	}
+
+	.mutual-avatar img {
+		width: 100%;
+		height: 100%;
+		object-fit: cover;
+	}
+
+	.mutual-initial {
+		width: 100%;
+		height: 100%;
+		background: var(--color-primary);
+		color: white;
+		font-size: 0.55rem;
+		font-weight: 700;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+	}
+
+	.mutuals-text {
+		font-size: 0.78rem;
 		color: var(--color-text-muted);
 	}
 
