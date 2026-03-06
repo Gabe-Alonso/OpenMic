@@ -16,17 +16,13 @@ export const handle: Handle = async ({ event, resolve }) => {
 		}
 	});
 
-	// Use safeGetSession instead of getSession everywhere in server code.
-	// getSession() trusts the cookie without verifying it against Supabase —
-	// safeGetSession() always validates the JWT with Supabase's servers first.
+	// getUser() validates the JWT by contacting Supabase's servers on every call —
+	// this is the secure approach. getSession() only reads cookies and should not
+	// be used for auth decisions on the server.
 	event.locals.safeGetSession = async () => {
-		const { data: { session } } = await event.locals.supabase.auth.getSession();
-		if (!session) return { session: null, user: null };
-
 		const { data: { user }, error } = await event.locals.supabase.auth.getUser();
-		if (error) return { session: null, user: null };
-
-		return { session, user };
+		if (error || !user) return { session: null, user: null };
+		return { session: null, user };
 	};
 
 	return resolve(event, {

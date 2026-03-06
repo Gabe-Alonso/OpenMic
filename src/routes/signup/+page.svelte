@@ -1,4 +1,10 @@
 <script lang="ts">
+	import { enhance } from '$app/forms';
+	import type { ActionData } from './$types';
+
+	let { form }: { form: ActionData } = $props();
+	let loading = $state(false);
+
 	function goBack() {
 		history.back();
 	}
@@ -6,46 +12,71 @@
 
 <div class="signup-page">
 	<div class="card">
-		<div class="card-header">
-			<span class="brand">OpenMic</span>
-			<h1>Create an account</h1>
-			<p>Join the community of artists and venues.</p>
-		</div>
-
-		<form class="form">
-			<div class="field">
-				<label for="name">Full name</label>
-				<input id="name" type="text" placeholder="Your name" autocomplete="name" />
+		{#if form?.success}
+			<div class="success-state">
+				<div class="success-icon">✓</div>
+				<h2>Check your email</h2>
+				<p>We sent a confirmation link to your inbox. Click it to activate your account.</p>
+				<a href="/signin" class="signin-link-btn">Go to Sign In</a>
+			</div>
+		{:else}
+			<div class="card-header">
+				<span class="brand">OpenMic</span>
+				<h1>Create an account</h1>
+				<p>Join the community of artists and venues.</p>
 			</div>
 
-			<div class="field">
-				<label for="email">Email</label>
-				<input id="email" type="email" placeholder="you@example.com" autocomplete="email" />
-			</div>
+			<form
+				class="form"
+				method="POST"
+				use:enhance={() => {
+					loading = true;
+					return async ({ update }) => {
+						loading = false;
+						await update();
+					};
+				}}
+			>
+				{#if form?.error}
+					<p class="error-msg">{form.error}</p>
+				{/if}
 
-			<div class="field">
-				<label for="password">Password</label>
-				<input id="password" type="password" placeholder="••••••••" autocomplete="new-password" />
-			</div>
+				<div class="field">
+					<label for="name">Full name</label>
+					<input id="name" name="name" type="text" placeholder="Your name" autocomplete="name" value={form?.name ?? ''} />
+				</div>
 
-			<div class="field">
-				<label for="confirm-password">Confirm password</label>
-				<input id="confirm-password" type="password" placeholder="••••••••" autocomplete="new-password" />
-			</div>
+				<div class="field">
+					<label for="email">Email</label>
+					<input id="email" name="email" type="email" placeholder="you@example.com" autocomplete="email" value={form?.email ?? ''} />
+				</div>
 
-			<button type="submit" class="submit-btn">Create Account</button>
-		</form>
+				<div class="field">
+					<label for="password">Password</label>
+					<input id="password" name="password" type="password" placeholder="••••••••" autocomplete="new-password" />
+				</div>
+
+				<div class="field">
+					<label for="confirm-password">Confirm password</label>
+					<input id="confirm-password" name="confirm-password" type="password" placeholder="••••••••" autocomplete="new-password" />
+				</div>
+
+				<button type="submit" class="submit-btn" disabled={loading}>
+					{loading ? 'Creating account…' : 'Create Account'}
+				</button>
+			</form>
 
 		<p class="signin-prompt">
-			Already have an account? <a href="/signin" class="signin-link">Sign in</a>
-		</p>
+				Already have an account? <a href="/signin" class="signin-link">Sign in</a>
+			</p>
 
-		<button class="back-btn" onclick={goBack}>
-			<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-				<path d="M19 12H5M12 5l-7 7 7 7" />
-			</svg>
-			Back
-		</button>
+			<button class="back-btn" onclick={goBack}>
+				<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+					<path d="M19 12H5M12 5l-7 7 7 7" />
+				</svg>
+				Back
+			</button>
+		{/if}
 	</div>
 </div>
 
@@ -94,10 +125,68 @@
 		color: var(--color-text-muted);
 	}
 
+	.success-state {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: 12px;
+		text-align: center;
+		padding: 8px 0;
+	}
+
+	.success-icon {
+		width: 48px;
+		height: 48px;
+		border-radius: 50%;
+		background: #dcfce7;
+		color: #16a34a;
+		font-size: 1.4rem;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		font-weight: 700;
+	}
+
+	.success-state h2 {
+		font-size: 1.3rem;
+		font-weight: 700;
+	}
+
+	.success-state p {
+		font-size: 0.9rem;
+		color: var(--color-text-muted);
+		line-height: 1.5;
+	}
+
+	.signin-link-btn {
+		display: inline-block;
+		background: var(--color-primary);
+		color: white;
+		padding: 9px 24px;
+		border-radius: var(--radius-sm);
+		font-size: 0.9rem;
+		font-weight: 600;
+		margin-top: 4px;
+		transition: background 0.15s;
+	}
+
+	.signin-link-btn:hover {
+		background: var(--color-primary-dark);
+	}
+
 	.form {
 		display: flex;
 		flex-direction: column;
 		gap: 16px;
+	}
+
+	.error-msg {
+		background: #fef2f2;
+		color: #dc2626;
+		border: 1px solid #fecaca;
+		border-radius: var(--radius-sm);
+		padding: 10px 14px;
+		font-size: 0.875rem;
 	}
 
 	.field {
@@ -146,8 +235,13 @@
 		margin-top: 4px;
 	}
 
-	.submit-btn:hover {
+	.submit-btn:hover:not(:disabled) {
 		background: var(--color-primary-dark);
+	}
+
+	.submit-btn:disabled {
+		opacity: 0.65;
+		cursor: not-allowed;
 	}
 
 	.signin-prompt {

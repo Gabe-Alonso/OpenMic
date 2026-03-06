@@ -1,4 +1,10 @@
 <script lang="ts">
+	import { enhance } from '$app/forms';
+	import type { ActionData } from './$types';
+
+	let { form }: { form: ActionData } = $props();
+	let loading = $state(false);
+
 	function goBack() {
 		history.back();
 	}
@@ -12,10 +18,31 @@
 			<p>Welcome back. Connect with your community.</p>
 		</div>
 
-		<form class="form">
+		<form
+			class="form"
+			method="POST"
+			use:enhance={() => {
+				loading = true;
+				return async ({ update }) => {
+					loading = false;
+					await update();
+				};
+			}}
+		>
+			{#if form?.error}
+				<p class="error-msg">{form.error}</p>
+			{/if}
+
 			<div class="field">
 				<label for="email">Email</label>
-				<input id="email" type="email" placeholder="you@example.com" autocomplete="email" />
+				<input
+					id="email"
+					name="email"
+					type="email"
+					placeholder="you@example.com"
+					autocomplete="email"
+					value={form?.email ?? ''}
+				/>
 			</div>
 
 			<div class="field">
@@ -23,10 +50,12 @@
 					<label for="password">Password</label>
 					<a href="/forgot-password" class="forgot">Forgot password?</a>
 				</div>
-				<input id="password" type="password" placeholder="••••••••" autocomplete="current-password" />
+				<input id="password" name="password" type="password" placeholder="••••••••" autocomplete="current-password" />
 			</div>
 
-			<button type="submit" class="submit-btn">Sign In</button>
+			<button type="submit" class="submit-btn" disabled={loading}>
+				{loading ? 'Signing in…' : 'Sign In'}
+			</button>
 		</form>
 
 		<p class="signup-prompt">
@@ -93,6 +122,15 @@
 		gap: 16px;
 	}
 
+	.error-msg {
+		background: #fef2f2;
+		color: #dc2626;
+		border: 1px solid #fecaca;
+		border-radius: var(--radius-sm);
+		padding: 10px 14px;
+		font-size: 0.875rem;
+	}
+
 	.field {
 		display: flex;
 		flex-direction: column;
@@ -154,8 +192,13 @@
 		margin-top: 4px;
 	}
 
-	.submit-btn:hover {
+	.submit-btn:hover:not(:disabled) {
 		background: var(--color-primary-dark);
+	}
+
+	.submit-btn:disabled {
+		opacity: 0.65;
+		cursor: not-allowed;
 	}
 
 	.signup-prompt {

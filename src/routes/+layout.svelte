@@ -1,8 +1,20 @@
 <script lang="ts">
 	import favicon from '$lib/assets/favicon.svg';
+	import type { LayoutData } from './$types';
+	import type { User } from '@supabase/supabase-js';
 	import '../app.css';
 
-	let { children } = $props();
+	let { children, data }: { children: any; data: LayoutData } = $props();
+
+	function getInitial(user: User): string {
+		const name = user.user_metadata?.full_name as string | undefined;
+		if (name?.length) return name[0].toUpperCase();
+		return user.email?.[0].toUpperCase() ?? '?';
+	}
+
+	function getDisplayName(user: User): string {
+		return (user.user_metadata?.full_name as string) || user.email || 'User';
+	}
 </script>
 
 <svelte:head>
@@ -23,17 +35,36 @@
 
 			<div class="nav-right">
 				<div class="profile-wrapper">
-					<button class="profile-btn" aria-label="Profile">
-						<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-							<circle cx="12" cy="8" r="4" />
-							<path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" />
-						</svg>
-					</button>
-					<div class="profile-dropdown">
-						<p class="dropdown-title">Not signed in</p>
-						<p class="dropdown-sub">Sign in to connect with artists and venues.</p>
-						<a href="/signin" class="dropdown-signin-btn">Sign In</a>
-					</div>
+					{#if data.user}
+						<button class="profile-btn avatar-btn" aria-label="Profile">
+							{#if data.avatarUrl}
+								<img src={data.avatarUrl} alt="Profile" class="nav-avatar" />
+							{:else}
+								{getInitial(data.user)}
+							{/if}
+						</button>
+						<div class="profile-dropdown">
+							<p class="dropdown-name">{getDisplayName(data.user)}</p>
+							<p class="dropdown-email">{data.user.email}</p>
+							<div class="dropdown-divider"></div>
+							<a href="/profile" class="dropdown-link">View Profile</a>
+							<form method="POST" action="/signout">
+								<button type="submit" class="dropdown-signout-btn">Sign Out</button>
+							</form>
+						</div>
+					{:else}
+						<button class="profile-btn" aria-label="Profile">
+							<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+								<circle cx="12" cy="8" r="4" />
+								<path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" />
+							</svg>
+						</button>
+						<div class="profile-dropdown">
+							<p class="dropdown-title">Not signed in</p>
+							<p class="dropdown-sub">Sign in to connect with artists and venues.</p>
+							<a href="/signin" class="dropdown-signin-btn">Sign In</a>
+						</div>
+					{/if}
 				</div>
 			</div>
 		</header>
@@ -128,6 +159,29 @@
 		color: var(--color-primary);
 	}
 
+	.avatar-btn {
+		background: var(--color-primary);
+		border-color: var(--color-primary);
+		color: white;
+		font-weight: 700;
+		font-size: 0.9rem;
+		overflow: hidden;
+		padding: 0;
+	}
+
+	.nav-avatar {
+		width: 100%;
+		height: 100%;
+		object-fit: cover;
+		border-radius: 50%;
+	}
+
+	.avatar-btn:hover {
+		background: var(--color-primary-dark);
+		border-color: var(--color-primary-dark);
+		color: white;
+	}
+
 	.profile-dropdown {
 		display: none;
 		position: absolute;
@@ -145,9 +199,10 @@
 	.profile-wrapper:hover .profile-dropdown {
 		display: flex;
 		flex-direction: column;
-		gap: 10px;
+		gap: 8px;
 	}
 
+	/* Signed-out dropdown */
 	.dropdown-title {
 		font-weight: 600;
 		font-size: 0.875rem;
@@ -173,6 +228,56 @@
 
 	.dropdown-signin-btn:hover {
 		background: var(--color-primary-dark);
+	}
+
+	/* Signed-in dropdown */
+	.dropdown-name {
+		font-weight: 600;
+		font-size: 0.9rem;
+	}
+
+	.dropdown-email {
+		font-size: 0.78rem;
+		color: var(--color-text-muted);
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	.dropdown-divider {
+		height: 1px;
+		background: var(--color-border);
+		margin: 2px 0;
+	}
+
+	.dropdown-link {
+		font-size: 0.875rem;
+		font-weight: 500;
+		color: var(--color-text);
+		padding: 6px 8px;
+		border-radius: var(--radius-sm);
+		transition: background 0.15s;
+	}
+
+	.dropdown-link:hover {
+		background: var(--color-bg);
+	}
+
+	.dropdown-signout-btn {
+		width: 100%;
+		text-align: left;
+		background: none;
+		border: none;
+		font-size: 0.875rem;
+		font-weight: 500;
+		color: #dc2626;
+		padding: 6px 8px;
+		border-radius: var(--radius-sm);
+		transition: background 0.15s;
+	}
+
+	.dropdown-signout-btn:hover {
+		background: #fef2f2;
 	}
 
 	main {
