@@ -16,5 +16,17 @@ export const load: PageServerLoad = async ({ params, locals: { supabase } }) => 
 		.eq('author_id', params.id)
 		.order('created_at', { ascending: false });
 
-	return { profile, posts: posts ?? [] };
+	const postsData = posts ?? [];
+	const likeCounts: Record<string, number> = {};
+	if (postsData.length > 0) {
+		const { data: likes } = await supabase
+			.from('post_likes')
+			.select('post_id')
+			.in('post_id', postsData.map((p) => p.id));
+		for (const like of likes ?? []) {
+			likeCounts[like.post_id] = (likeCounts[like.post_id] ?? 0) + 1;
+		}
+	}
+
+	return { profile, posts: postsData, likeCounts };
 };

@@ -13,9 +13,10 @@
 			created_at: string;
 			post_media: PostMedia[];
 		};
+		likeCount?: number;
 	}
 
-	let { post }: Props = $props();
+	let { post, likeCount = 0 }: Props = $props();
 
 	function stripHtml(html: string | null): string {
 		return (html ?? '').replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim();
@@ -62,7 +63,17 @@
 		{:else}
 			<p class="preview muted">No content</p>
 		{/if}
-		<span class="date">{timeAgo(post.created_at)}</span>
+		<div class="post-footer">
+			<span class="date">{timeAgo(post.created_at)}</span>
+			{#if likeCount > 0}
+				<span class="like-preview">
+					<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+						<path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z" />
+					</svg>
+					{likeCount}
+				</span>
+			{/if}
+		</div>
 	</div>
 
 	{#if hasMedia}
@@ -118,9 +129,25 @@
 		font-style: italic;
 	}
 
+	.post-footer {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 8px;
+	}
+
 	.date {
 		font-size: 0.75rem;
 		color: var(--color-text-muted);
+	}
+
+	.like-preview {
+		display: flex;
+		align-items: center;
+		gap: 3px;
+		font-size: 0.75rem;
+		font-weight: 500;
+		color: #f43f5e;
 	}
 
 	/* Media thumbnails */

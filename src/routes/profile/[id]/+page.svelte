@@ -78,7 +78,7 @@
 		{#if data.posts.length > 0}
 			<div class="posts-list">
 				{#each data.posts as post}
-					<PostCard {post} />
+					<PostCard {post} likeCount={data.likeCounts[post.id] ?? 0} />
 				{/each}
 			</div>
 		{:else}
