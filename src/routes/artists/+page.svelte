@@ -261,6 +261,7 @@
 						</div>
 						<div class="artist-info">
 							<p class="artist-name">{artist.full_name ?? 'Anonymous Artist'}</p>
+							<p class="artist-followers">{data.followerCounts[artist.id] ?? 0} followers</p>
 							{#if artist.location}
 								<p class="artist-location">{artist.location}</p>
 							{/if}
@@ -525,6 +526,11 @@
 	.artist-name {
 		font-weight: 600;
 		font-size: 0.9rem;
+	}
+
+	.artist-followers {
+		font-size: 0.75rem;
+		color: var(--color-text-muted);
 	}
 
 	.artist-location {

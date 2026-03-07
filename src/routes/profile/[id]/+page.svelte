@@ -44,6 +44,22 @@
 		if (extra > 0) return `${names} ... and ${extra} more`;
 		return names;
 	}
+
+	type ListProfile = { id: string; full_name: string | null; avatar_url: string | null };
+	let followModal = $state<{ type: 'followers' | 'following'; list: ListProfile[] } | null>(null);
+	let loadingModal = $state(false);
+
+	async function openFollowModal(type: 'followers' | 'following') {
+		loadingModal = true;
+		followModal = { type, list: [] };
+		const res = await fetch(`/api/follows/${profile.id}/list?type=${type}`);
+		if (res.ok) followModal = { type, list: await res.json() };
+		loadingModal = false;
+	}
+
+	function closeFollowModal() {
+		followModal = null;
+	}
 </script>
 
 <div class="public-profile">
@@ -62,9 +78,9 @@
 				<div class="name-row">
 					<h1 class="display-name">{profile.full_name ?? 'Anonymous Artist'}</h1>
 					<div class="follow-stats">
-						<span class="stat"><strong>{followerCount}</strong> Followers</span>
+						<button class="stat stat-btn" onclick={() => openFollowModal('followers')}><strong>{followerCount}</strong> Followers</button>
 						<span class="stat-dot">·</span>
-						<span class="stat"><strong>{data.followingCount}</strong> Following</span>
+						<button class="stat stat-btn" onclick={() => openFollowModal('following')}><strong>{data.followingCount}</strong> Following</button>
 					</div>
 				</div>
 				{#if profile.location}
@@ -171,6 +187,51 @@
 	</div>
 
 </div>
+
+{#if followModal}
+	<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+	<div
+		class="modal-backdrop"
+		role="dialog"
+		aria-modal="true"
+		tabindex="-1"
+		onkeydown={(e) => { if (e.key === 'Escape') closeFollowModal(); }}
+		onclick={(e) => { if (e.target === e.currentTarget) closeFollowModal(); }}
+	>
+		<div class="modal">
+			<div class="modal-header">
+				<h2 class="modal-title">{followModal.type === 'followers' ? 'Followers' : 'Following'}</h2>
+				<button class="modal-close" onclick={closeFollowModal} aria-label="Close">
+					<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+						<path d="M18 6 6 18M6 6l12 12" />
+					</svg>
+				</button>
+			</div>
+			{#if loadingModal}
+				<p class="modal-empty">Loading…</p>
+			{:else if followModal.list.length === 0}
+				<p class="modal-empty">No {followModal.type === 'followers' ? 'followers' : 'following'} yet.</p>
+			{:else}
+				<ul class="modal-list">
+					{#each followModal.list as person (person.id)}
+						<li>
+							<a href="/profile/{person.id}" class="modal-person" onclick={closeFollowModal}>
+								<div class="modal-avatar">
+									{#if person.avatar_url}
+										<img src={person.avatar_url} alt={person.full_name ?? ''} />
+									{:else}
+										<span>{person.full_name?.[0]?.toUpperCase() ?? '?'}</span>
+									{/if}
+								</div>
+								<span class="modal-name">{person.full_name ?? 'Anonymous Artist'}</span>
+							</a>
+						</li>
+					{/each}
+				</ul>
+			{/if}
+		</div>
+	</div>
+{/if}
 
 <style>
 	.public-profile {
@@ -464,5 +525,133 @@
 		color: var(--color-text-muted);
 		max-width: 340px;
 		line-height: 1.5;
+	}
+
+	/* Stat buttons */
+	.stat-btn {
+		background: none;
+		border: none;
+		padding: 0;
+		cursor: pointer;
+		font-size: inherit;
+		color: inherit;
+		font-family: inherit;
+	}
+
+	.stat-btn:hover {
+		text-decoration: underline;
+	}
+
+	/* Follow modal */
+	.modal-backdrop {
+		position: fixed;
+		inset: 0;
+		background: rgba(0, 0, 0, 0.45);
+		z-index: 1000;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+	}
+
+	.modal {
+		background: var(--color-surface);
+		border: 1px solid var(--color-border);
+		border-radius: var(--radius-lg);
+		box-shadow: var(--shadow-md);
+		width: 360px;
+		max-width: calc(100vw - 32px);
+		max-height: 70vh;
+		display: flex;
+		flex-direction: column;
+		overflow: hidden;
+	}
+
+	.modal-header {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		padding: 18px 20px 14px;
+		border-bottom: 1px solid var(--color-border);
+		flex-shrink: 0;
+	}
+
+	.modal-title {
+		font-size: 1rem;
+		font-weight: 700;
+		margin: 0;
+	}
+
+	.modal-close {
+		background: none;
+		border: none;
+		color: var(--color-text-muted);
+		cursor: pointer;
+		display: flex;
+		align-items: center;
+		padding: 4px;
+		border-radius: var(--radius-sm);
+		transition: color 0.15s;
+	}
+
+	.modal-close:hover {
+		color: var(--color-text);
+	}
+
+	.modal-list {
+		list-style: none;
+		margin: 0;
+		padding: 8px;
+		overflow-y: auto;
+	}
+
+	.modal-person {
+		display: flex;
+		align-items: center;
+		gap: 12px;
+		padding: 10px 12px;
+		border-radius: var(--radius-sm);
+		text-decoration: none;
+		color: var(--color-text);
+		transition: background 0.15s;
+	}
+
+	.modal-person:hover {
+		background: var(--color-bg);
+	}
+
+	.modal-avatar {
+		width: 40px;
+		height: 40px;
+		border-radius: 50%;
+		flex-shrink: 0;
+		background: var(--color-primary);
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		overflow: hidden;
+	}
+
+	.modal-avatar img {
+		width: 100%;
+		height: 100%;
+		object-fit: cover;
+	}
+
+	.modal-avatar span {
+		color: white;
+		font-weight: 700;
+		font-size: 0.95rem;
+	}
+
+	.modal-name {
+		font-size: 0.9rem;
+		font-weight: 500;
+	}
+
+	.modal-empty {
+		padding: 32px 20px;
+		text-align: center;
+		font-size: 0.875rem;
+		color: var(--color-text-muted);
 	}
 </style>

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { goto } from '$app/navigation';
 	import favicon from '$lib/assets/favicon.svg';
 	import type { LayoutData } from './$types';
 	import type { User } from '@supabase/supabase-js';
@@ -36,7 +37,7 @@
 			<div class="nav-right">
 				<div class="profile-wrapper">
 					{#if data.user}
-						<button class="profile-btn avatar-btn" aria-label="Profile">
+						<button class="profile-btn avatar-btn" aria-label="Profile" onclick={() => goto('/profile')}>
 							{#if data.avatarUrl}
 								<img src={data.avatarUrl} alt="Profile" class="nav-avatar" />
 							{:else}
@@ -183,7 +184,9 @@
 	}
 
 	.profile-dropdown {
-		display: none;
+		display: flex;
+		flex-direction: column;
+		gap: 8px;
 		position: absolute;
 		right: 0;
 		top: calc(100% + 10px);
@@ -194,12 +197,18 @@
 		padding: 16px;
 		width: 220px;
 		z-index: 200;
+		visibility: hidden;
+		opacity: 0;
+		pointer-events: none;
+		/* Delay hiding by 1.2s so cursor can move into dropdown */
+		transition: opacity 0.15s, visibility 0s linear 1.2s, pointer-events 0s linear 1.2s;
 	}
 
 	.profile-wrapper:hover .profile-dropdown {
-		display: flex;
-		flex-direction: column;
-		gap: 8px;
+		visibility: visible;
+		opacity: 1;
+		pointer-events: auto;
+		transition: opacity 0.15s, visibility 0s, pointer-events 0s;
 	}
 
 	/* Signed-out dropdown */
