@@ -13,5 +13,24 @@ export const load: LayoutServerLoad = async ({ locals: { safeGetSession, supabas
 		avatarUrl = data?.avatar_url ?? null;
 	}
 
-	return { session, user, avatarUrl };
+	let unreadCount = 0;
+	if (user) {
+		const { data: convos } = await supabase
+			.from('conversations')
+			.select('id')
+			.or(`participant_1.eq.${user.id},participant_2.eq.${user.id}`)
+			.is('request_status', null);
+		const ids = (convos ?? []).map((c: any) => c.id);
+		if (ids.length > 0) {
+			const { count } = await supabase
+				.from('messages')
+				.select('id', { count: 'exact', head: true })
+				.in('conversation_id', ids)
+				.is('read_at', null)
+				.neq('sender_id', user.id);
+			unreadCount = count ?? 0;
+		}
+	}
+
+	return { session, user, avatarUrl, unreadCount };
 };

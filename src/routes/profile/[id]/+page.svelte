@@ -46,6 +46,27 @@
 	}
 
 	type ListProfile = { id: string; full_name: string | null; avatar_url: string | null };
+	let dmLoading = $state(false);
+
+	async function startDM() {
+		if (dmLoading) return;
+		dmLoading = true;
+		try {
+			const res = await fetch('/api/messages/conversations', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ other_user_id: profile.id })
+			});
+			if (res.status === 401) { goto('/signin'); return; }
+			if (res.ok) {
+				const { conversationId } = await res.json();
+				goto(`/messages/${conversationId}`);
+			}
+		} finally {
+			dmLoading = false;
+		}
+	}
+
 	let followModal = $state<{ type: 'followers' | 'following'; list: ListProfile[] } | null>(null);
 	let loadingModal = $state(false);
 
@@ -95,25 +116,36 @@
 			</div>
 
 			{#if !data.isOwnProfile}
-				<button
-					class="follow-btn"
-					class:is-following={userFollows}
-					class:hovered={followBtnHovered && userFollows}
-					onmouseenter={() => (followBtnHovered = true)}
-					onmouseleave={() => (followBtnHovered = false)}
-					onclick={toggleFollow}
-					disabled={toggling}
-				>
-					{#if toggling}
-						<svg class="spin" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 2a10 10 0 0 1 10 10"/></svg>
-					{:else if userFollows && followBtnHovered}
-						Unfollow
-					{:else if userFollows}
-						Following
-					{:else}
-						Follow
+				<div class="profile-actions">
+					<button
+						class="follow-btn"
+						class:is-following={userFollows}
+						class:hovered={followBtnHovered && userFollows}
+						onmouseenter={() => (followBtnHovered = true)}
+						onmouseleave={() => (followBtnHovered = false)}
+						onclick={toggleFollow}
+						disabled={toggling}
+					>
+						{#if toggling}
+							<svg class="spin" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 2a10 10 0 0 1 10 10"/></svg>
+						{:else if userFollows && followBtnHovered}
+							Unfollow
+						{:else if userFollows}
+							Following
+						{:else}
+							Follow
+						{/if}
+					</button>
+					{#if data.user}
+						<button class="message-btn" onclick={startDM} disabled={dmLoading} aria-label="Message">
+							<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+								<path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+								<polyline points="22,6 12,13 2,6"/>
+							</svg>
+							Message
+						</button>
 					{/if}
-				</button>
+				</div>
 			{/if}
 		</div>
 
@@ -334,6 +366,40 @@
 		font-size: 0.875rem;
 		color: var(--color-text-muted);
 		margin: 0;
+	}
+
+	/* Profile action buttons */
+	.profile-actions {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		flex-shrink: 0;
+	}
+
+	.message-btn {
+		display: flex;
+		align-items: center;
+		gap: 6px;
+		padding: 9px 16px;
+		border-radius: var(--radius-sm);
+		font-size: 0.875rem;
+		font-weight: 600;
+		cursor: pointer;
+		transition: background 0.15s, border-color 0.15s, color 0.15s;
+		background: none;
+		color: var(--color-text);
+		border: 1.5px solid var(--color-border);
+	}
+
+	.message-btn:hover:not(:disabled) {
+		background: var(--color-primary-light);
+		border-color: var(--color-primary);
+		color: var(--color-primary);
+	}
+
+	.message-btn:disabled {
+		opacity: 0.7;
+		cursor: default;
 	}
 
 	/* Follow button */

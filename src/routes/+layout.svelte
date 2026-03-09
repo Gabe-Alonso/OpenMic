@@ -1,11 +1,53 @@
 <script lang="ts">
+	import { onMount, onDestroy } from 'svelte';
 	import { goto } from '$app/navigation';
+	import { page } from '$app/stores';
 	import favicon from '$lib/assets/favicon.svg';
 	import type { LayoutData } from './$types';
 	import type { User } from '@supabase/supabase-js';
+	import { createBrowserClient } from '@supabase/ssr';
+	import { PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY } from '$env/static/public';
 	import '../app.css';
 
 	let { children, data }: { children: any; data: LayoutData } = $props();
+
+	// Live unread count — initialised from server, updated by Realtime
+	let liveUnreadCount = $state(data.unreadCount ?? 0);
+
+	// Sync back to server value whenever the layout server load re-runs (e.g. after invalidateAll)
+	$effect(() => {
+		liveUnreadCount = data.unreadCount ?? 0;
+	});
+
+	let realtimeChannel: any;
+
+	onMount(() => {
+		if (!data.user) return;
+		const supabase = createBrowserClient(PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY);
+		realtimeChannel = supabase
+			.channel('layout-unread')
+			.on(
+				'postgres_changes',
+				{ event: 'INSERT', schema: 'public', table: 'messages' },
+				(payload: any) => {
+					const msg = payload.new;
+					// Only count messages from the other person that haven't been read yet.
+					// If the user is actively viewing that conversation, skip — the thread
+					// page's invalidateAll() will reset the count when they leave.
+					if (
+						msg.sender_id !== data.user!.id &&
+						!$page.url.pathname.startsWith(`/messages/${msg.conversation_id}`)
+					) {
+						liveUnreadCount += 1;
+					}
+				}
+			)
+			.subscribe();
+	});
+
+	onDestroy(() => {
+		realtimeChannel?.unsubscribe();
+	});
 
 	function getInitial(user: User): string {
 		const name = user.user_metadata?.full_name as string | undefined;
@@ -37,6 +79,17 @@
 			</nav>
 
 			<div class="nav-right">
+				{#if data.user}
+				<a href="/messages" class="envelope-btn" aria-label="Messages">
+					<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+						<path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+						<polyline points="22,6 12,13 2,6"/>
+					</svg>
+					{#if liveUnreadCount > 0}
+						<span class="unread-dot"></span>
+					{/if}
+				</a>
+				{/if}
 				<div class="profile-wrapper">
 					{#if data.user}
 						<button class="profile-btn avatar-btn" aria-label="Profile" onclick={() => goto('/profile')}>
@@ -137,6 +190,38 @@
 	.nav-right {
 		display: flex;
 		align-items: center;
+		gap: 8px;
+	}
+
+	.envelope-btn {
+		position: relative;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: 38px;
+		height: 38px;
+		border-radius: 50%;
+		background: var(--color-bg);
+		border: 1.5px solid var(--color-border);
+		color: var(--color-text-muted);
+		transition: background 0.15s, border-color 0.15s, color 0.15s;
+	}
+
+	.envelope-btn:hover {
+		background: var(--color-primary-light);
+		border-color: var(--color-primary);
+		color: var(--color-primary);
+	}
+
+	.unread-dot {
+		position: absolute;
+		top: 1px;
+		right: 1px;
+		width: 9px;
+		height: 9px;
+		background: #ef4444;
+		border-radius: 50%;
+		border: 1.5px solid var(--color-surface);
 	}
 
 	.profile-wrapper {

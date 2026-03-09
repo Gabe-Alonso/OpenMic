@@ -57,7 +57,7 @@
 			</div>
 			<div class="section-body">
 				<h2>Get in touch</h2>
-				<p>Have a suggestion, found a bug, or just want to say hello? I'd love to hear from you.</p>
+				<p>Have a suggestion, found a bug, or any other kind of feedback? Let me know!</p>
 				<div class="contact-items">
 					<div class="contact-item">
 						<span class="contact-label">Suggestions, bug reports, &amp; feedback</span>
@@ -175,9 +175,4 @@
 		color: var(--color-text);
 	}
 
-	.contact-value.placeholder {
-		color: var(--color-text-muted);
-		font-style: italic;
-		font-weight: 400;
-	}
 </style>
