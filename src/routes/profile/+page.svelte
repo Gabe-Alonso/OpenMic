@@ -3,6 +3,7 @@
 	import { invalidateAll } from '$app/navigation';
 	import { createClient } from '$lib/supabase';
 	import LocationSearch from '$lib/components/LocationSearch.svelte';
+	import TagInput from '$lib/components/TagInput.svelte';
 	import PostCard from '$lib/components/PostCard.svelte';
 	import type { PageData, ActionData } from './$types';
 
@@ -10,6 +11,8 @@
 
 	const supabase = createClient();
 	const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50 MB
+
+	let profileTags = $state<string[]>(data.profile?.tags ?? []);
 
 	let confirmDelete = $state(false);
 	let avatarPreview = $state<string | null>(null);
@@ -131,6 +134,12 @@
 				<div class="field full">
 					<label for="bio">Bio</label>
 					<textarea id="bio" name="bio" rows={4} placeholder="Tell the community about yourself, your sound, what you're looking for…">{data.profile?.bio ?? ''}</textarea>
+				</div>
+
+				<div class="field full">
+					<label>Tags</label>
+					<TagInput tags={profileTags} ontags={(t) => (profileTags = t)} placeholder="Add genre, instrument, style… (Enter or comma)" />
+					<input type="hidden" name="tags" value={JSON.stringify(profileTags)} />
 				</div>
 			</div>
 

@@ -44,6 +44,9 @@ export const actions: Actions = {
 
 		const latRaw = data.get('location_lat') as string;
 		const lngRaw = data.get('location_lng') as string;
+		const tagsRaw = data.get('tags') as string;
+		let tags: string[] = [];
+		try { tags = tagsRaw ? JSON.parse(tagsRaw) : []; } catch { tags = []; }
 
 		const { error } = await supabase.from('profiles').upsert({
 			id: user.id,
@@ -54,6 +57,7 @@ export const actions: Actions = {
 			bio: data.get('bio') as string,
 			contact_email: data.get('contact_email') as string,
 			instagram: data.get('instagram') as string,
+			tags,
 			updated_at: new Date().toISOString()
 		});
 

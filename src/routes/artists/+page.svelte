@@ -2,6 +2,7 @@
 	import 'mapbox-gl/dist/mapbox-gl.css';
 	import { onMount } from 'svelte';
 	import { PUBLIC_MAPBOX_TOKEN } from '$env/static/public';
+	import TagInput from '$lib/components/TagInput.svelte';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
@@ -10,6 +11,13 @@
 	let map: any = null;
 	let visibleArtists = $state(data.artists);
 	let activeArtistId = $state<string | null>(null);
+	let tagFilter = $state<string[]>([]);
+
+	const displayArtists = $derived(
+		tagFilter.length === 0
+			? visibleArtists
+			: visibleArtists.filter((a) => tagFilter.every((t) => ((a as any).tags ?? []).includes(t)))
+	);
 
 	// Search state
 	let searchInput = $state('');
@@ -216,14 +224,18 @@
 					{/each}
 				</select>
 			</div>
+			<div class="tag-filter-row">
+				<TagInput tags={tagFilter} ontags={(t) => (tagFilter = t)} placeholder="Filter by tag…" />
+			</div>
 		</div>
 
 		<div class="list-header">
 			<h1>Artists</h1>
 			<p>
-				{visibleArtists.length}
-				{visibleArtists.length === 1 ? 'artist' : 'artists'}
+				{displayArtists.length}
+				{displayArtists.length === 1 ? 'artist' : 'artists'}
 				{searchLat !== null ? `within ${searchRadius} miles` : 'in view'}
+				{tagFilter.length > 0 ? `matching ${tagFilter.length === 1 ? 'tag' : 'tags'}` : ''}
 			</p>
 		</div>
 
@@ -234,18 +246,20 @@
 					<p class="empty-title">No artists yet</p>
 					<p class="empty-sub">Artists will appear here once they set their location and make themselves discoverable.</p>
 				</div>
-			{:else if visibleArtists.length === 0}
+			{:else if displayArtists.length === 0}
 				<div class="empty-state">
 					<span class="empty-icon">🗺️</span>
-					<p class="empty-title">No artists in this area</p>
+					<p class="empty-title">No artists found</p>
 					<p class="empty-sub">
-						{searchLat !== null
-							? 'Try increasing the radius or searching a different location.'
-							: 'Try zooming out or panning the map.'}
+						{tagFilter.length > 0
+							? 'No artists match those tags in this area. Try removing a tag or expanding your search.'
+							: searchLat !== null
+								? 'Try increasing the radius or searching a different location.'
+								: 'Try zooming out or panning the map.'}
 					</p>
 				</div>
 			{:else}
-				{#each visibleArtists as artist (artist.id)}
+				{#each displayArtists as artist (artist.id)}
 					<a
 						href="/profile/{artist.id}"
 						id="artist-{artist.id}"
@@ -267,6 +281,13 @@
 							{/if}
 							{#if artist.bio}
 								<p class="artist-bio">{artist.bio}</p>
+							{/if}
+							{#if (artist as any).tags?.length > 0}
+								<div class="artist-tags">
+									{#each (artist as any).tags as tag}
+										<span class="artist-tag">#{tag}</span>
+									{/each}
+								</div>
 							{/if}
 						</div>
 					</a>
@@ -444,6 +465,10 @@
 		cursor: default;
 	}
 
+	.tag-filter-row {
+		margin-top: 8px;
+	}
+
 	/* List header */
 	.list-header {
 		padding: 16px 20px 12px;
@@ -547,6 +572,22 @@
 		overflow: hidden;
 		line-height: 1.4;
 		margin-top: 2px;
+	}
+
+	.artist-tags {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 4px;
+		margin-top: 4px;
+	}
+
+	.artist-tag {
+		font-size: 0.72rem;
+		font-weight: 600;
+		color: var(--color-primary);
+		background: var(--color-primary-light);
+		border-radius: 999px;
+		padding: 2px 8px;
 	}
 
 	/* Empty state */
