@@ -70,11 +70,10 @@
 			<nav class="nav-left">
 				<a href="/" class="logo">OpenMic</a>
 				<div class="nav-links">
-					<a href="/">Home</a>
 					<a href="/community">Community</a>
 					<a href="/artists">Artists</a>
 					<a href="/venues">Venues</a>
-				<a href="/about">About</a>
+					<a href="/about">About</a>
 				</div>
 			</nav>
 
