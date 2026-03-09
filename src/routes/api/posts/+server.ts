@@ -5,14 +5,15 @@ export const POST: RequestHandler = async ({ request, locals: { supabase, safeGe
 	const { user } = await safeGetSession();
 	if (!user) return json({ error: 'Unauthorized' }, { status: 401 });
 
-	const { body, youtube_url, media } = await request.json();
+	const { body, youtube_url, media, tags } = await request.json();
 
 	const { data: post, error } = await supabase
 		.from('posts')
 		.insert({
 			author_id: user.id,
 			body: body || null,
-			youtube_url: youtube_url || null
+			youtube_url: youtube_url || null,
+			tags: tags ?? []
 		})
 		.select('id')
 		.single();

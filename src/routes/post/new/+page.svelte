@@ -2,12 +2,14 @@
 	import { goto } from '$app/navigation';
 	import { createClient } from '$lib/supabase';
 	import RichTextEditor from '$lib/components/RichTextEditor.svelte';
+	import TagInput from '$lib/components/TagInput.svelte';
 
 	const supabase = createClient();
 	const MAX_IMAGE_SIZE = 10 * 1024 * 1024; // 10 MB per image
 
 	let body = $state('');
 	let youtubeUrl = $state('');
+	let tags = $state<string[]>([]);
 	let imageFiles = $state<File[]>([]);
 	let imagePreviews = $state<string[]>([]);
 	let publishing = $state(false);
@@ -86,6 +88,7 @@
 				body: JSON.stringify({
 					body: body || null,
 					youtube_url: youtubeUrl.trim() || null,
+					tags,
 					media
 				})
 			});
@@ -151,6 +154,12 @@
 		{:else}
 			<p class="media-hint">Upload photos to accompany your post. Max 10 MB each.</p>
 		{/if}
+	</div>
+
+	<div class="card">
+		<label class="section-label">Tags (optional)</label>
+		<TagInput {tags} ontags={(t) => (tags = t)} placeholder="e.g. jazz, producer, solo artist…" />
+		<p class="media-hint">Press Enter or comma to add. Up to 10 tags.</p>
 	</div>
 
 	<div class="card">

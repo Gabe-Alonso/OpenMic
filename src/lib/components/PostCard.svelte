@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { goto } from '$app/navigation';
 	interface PostMedia {
 		url: string;
 		media_type: string;
@@ -12,11 +13,14 @@
 			youtube_url: string | null;
 			created_at: string;
 			post_media: PostMedia[];
+			tags?: string[] | null;
+			profiles?: { id: string; full_name: string | null; avatar_url: string | null } | null;
 		};
 		likeCount?: number;
+		showAuthor?: boolean;
 	}
 
-	let { post, likeCount = 0 }: Props = $props();
+	let { post, likeCount = 0, showAuthor = false }: Props = $props();
 
 	function stripHtml(html: string | null): string {
 		return (html ?? '').replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim();
@@ -52,10 +56,30 @@
 	}
 
 	const hasMedia = thumbs.length > 0;
+	const postCardTags = (post.tags ?? []).slice(0, 3);
 </script>
 
-<a href="/post/{post.id}" class="post-card" class:no-media={!hasMedia}>
+<a href="/post/{post.id}" class="post-card" class:no-media={!hasMedia} class:has-author={showAuthor && post.profiles}>
+	{#if showAuthor && post.profiles}
+		<div class="author-bar">
+			<div class="author-avatar-sm">
+				{#if post.profiles.avatar_url}
+					<img src={post.profiles.avatar_url} alt={post.profiles.full_name ?? ''} />
+				{:else}
+					<span>{post.profiles.full_name?.[0]?.toUpperCase() ?? '?'}</span>
+				{/if}
+			</div>
+			<span class="author-name-sm">{post.profiles.full_name ?? 'Anonymous Artist'}</span>
+		</div>
+	{/if}
 	<div class="post-text">
+		{#if postCardTags.length > 0}
+			<div class="card-tags">
+				{#each postCardTags as tag}
+					<button class="card-tag" onclick={(e) => { e.preventDefault(); e.stopPropagation(); goto("/tags/" + tag); }}>#{tag}</button>
+				{/each}
+			</div>
+		{/if}
 		{#if previewText}
 			<p class="preview">{previewText}</p>
 		{:else if post.youtube_url}
@@ -85,10 +109,11 @@
 	{/if}
 </a>
 
+
 <style>
 	.post-card {
 		display: flex;
-		gap: 0;
+		flex-direction: row;
 		border: 1.5px solid var(--color-border);
 		border-radius: var(--radius-md);
 		background: var(--color-surface);
@@ -97,6 +122,62 @@
 		overflow: hidden;
 		transition: border-color 0.15s, box-shadow 0.15s;
 		min-height: 110px;
+	}
+
+	.post-card.has-author {
+		flex-direction: column;
+	}
+
+	.post-card.has-author .post-text {
+		flex: 1;
+	}
+
+	/* When there's an author bar AND media, put the text+media row below the bar */
+	.post-card.has-author .post-thumbs {
+		width: auto;
+		height: 140px;
+		border-left: none;
+		border-top: 1px solid var(--color-border);
+	}
+
+	/* Author bar */
+	.author-bar {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		padding: 10px 14px 8px;
+		border-bottom: 1px solid var(--color-border);
+		flex-shrink: 0;
+	}
+
+	.author-avatar-sm {
+		width: 26px;
+		height: 26px;
+		border-radius: 50%;
+		background: var(--color-primary);
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		overflow: hidden;
+		flex-shrink: 0;
+	}
+
+	.author-avatar-sm img {
+		width: 100%;
+		height: 100%;
+		object-fit: cover;
+	}
+
+	.author-avatar-sm span {
+		color: white;
+		font-weight: 700;
+		font-size: 0.65rem;
+	}
+
+	.author-name-sm {
+		font-size: 0.82rem;
+		font-weight: 600;
+		color: var(--color-text);
 	}
 
 	.post-card:hover {
@@ -170,6 +251,35 @@
 	/* Two thumbnails: add divider between them */
 	.post-thumbs:not(.single) img:first-child {
 		border-bottom: 1px solid var(--color-border);
+	}
+
+	/* Card tags */
+	.card-tags {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 4px;
+		margin-bottom: 4px;
+	}
+
+	.card-tag {
+		display: inline-flex;
+		align-items: center;
+		background: var(--color-primary-light, #f0f0ff);
+		color: var(--color-primary);
+		border: none;
+		border-radius: 999px;
+		padding: 2px 8px;
+		font-size: 0.7rem;
+		font-weight: 600;
+		white-space: nowrap;
+		cursor: pointer;
+		transition: background 0.15s, color 0.15s;
+		font-family: inherit;
+	}
+
+	.card-tag:hover {
+		background: var(--color-primary);
+		color: white;
 	}
 
 	/* Single thumbnail: slightly taller */

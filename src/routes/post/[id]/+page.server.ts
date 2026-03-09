@@ -61,7 +61,7 @@ export const load: PageServerLoad = async ({ params, locals: { supabase, safeGet
 
 	const authorId = (post.profiles as any)?.id as string | undefined;
 
-	const [{ count: likeCount }, likerRes, likedRes, followersRes, followingRes] = await Promise.all([
+	const [{ count: likeCount }, likerRes, likedRes, followersRes, followingRes, { count: commentCount }] = await Promise.all([
 		supabase
 			.from('post_likes')
 			.select('*', { count: 'exact', head: true })
@@ -85,7 +85,11 @@ export const load: PageServerLoad = async ({ params, locals: { supabase, safeGet
 			: Promise.resolve({ count: 0 }),
 		authorId
 			? supabase.from('follows').select('*', { count: 'exact', head: true }).eq('follower_id', authorId)
-			: Promise.resolve({ count: 0 })
+			: Promise.resolve({ count: 0 }),
+		supabase
+			.from('post_comments')
+			.select('*', { count: 'exact', head: true })
+			.eq('post_id', params.id)
 	]);
 
 	const mutuals =
@@ -100,6 +104,8 @@ export const load: PageServerLoad = async ({ params, locals: { supabase, safeGet
 		likers: likerRes.data ?? [],
 		authorFollowerCount: followersRes.count ?? 0,
 		authorFollowingCount: followingRes.count ?? 0,
-		mutuals
+		mutuals,
+		commentCount: commentCount ?? 0,
+		currentUserId: user?.id ?? null
 	};
 };
