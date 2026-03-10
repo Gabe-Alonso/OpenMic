@@ -10,14 +10,25 @@ export const POST: RequestHandler = async ({ params, request, locals: { supabase
 
 	const { data: convo } = await supabase
 		.from('conversations')
-		.select('request_status, request_from, participant_1, participant_2')
+		.select('request_status, request_from, participant_1, participant_2, is_group')
 		.eq('id', params.id)
 		.single();
 
 	if (!convo) throw error(404, 'Not found');
-	if (convo.participant_1 !== user.id && convo.participant_2 !== user.id) throw error(403, 'Forbidden');
-	if (convo.request_status === 'pending' && convo.request_from !== user.id) {
-		throw error(403, 'Accept the message request first');
+
+	if (convo.is_group) {
+		const { data: member } = await supabase
+			.from('conversation_participants')
+			.select('user_id')
+			.eq('conversation_id', params.id)
+			.eq('user_id', user.id)
+			.maybeSingle();
+		if (!member) throw error(403, 'Not a member');
+	} else {
+		if (convo.participant_1 !== user.id && convo.participant_2 !== user.id) throw error(403, 'Forbidden');
+		if (convo.request_status === 'pending' && convo.request_from !== user.id) {
+			throw error(403, 'Accept the message request first');
+		}
 	}
 
 	const { data: msg, error: insertErr } = await supabase

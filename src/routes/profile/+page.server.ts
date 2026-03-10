@@ -45,8 +45,13 @@ export const actions: Actions = {
 		const latRaw = data.get('location_lat') as string;
 		const lngRaw = data.get('location_lng') as string;
 		const tagsRaw = data.get('tags') as string;
+		const artistRolesRaw = data.get('artist_roles') as string;
 		let tags: string[] = [];
 		try { tags = tagsRaw ? JSON.parse(tagsRaw) : []; } catch { tags = []; }
+		let artistRoles: string[] = [];
+		try { artistRoles = artistRolesRaw ? JSON.parse(artistRolesRaw) : []; } catch { artistRoles = []; }
+
+		const profileType = (data.get('profile_type') as string) || 'artist';
 
 		const { error } = await supabase.from('profiles').upsert({
 			id: user.id,
@@ -58,6 +63,8 @@ export const actions: Actions = {
 			contact_email: data.get('contact_email') as string,
 			instagram: data.get('instagram') as string,
 			tags,
+			profile_type: profileType,
+			artist_roles: profileType === 'artist' ? artistRoles : [],
 			updated_at: new Date().toISOString()
 		});
 

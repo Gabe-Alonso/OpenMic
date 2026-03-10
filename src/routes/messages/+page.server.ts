@@ -9,5 +9,14 @@ export const load: PageServerLoad = async ({ locals: { supabase, safeGetSession 
 		p_user_id: user.id
 	});
 
-	return { conversations: conversations ?? [], userId: user.id };
+	const { data: following } = await supabase
+		.from('follows')
+		.select('profiles!follows_following_id_fkey(id, full_name, avatar_url)')
+		.eq('follower_id', user.id);
+
+	return {
+		conversations: conversations ?? [],
+		userId: user.id,
+		following: (following ?? []).map((f: any) => f.profiles).filter(Boolean)
+	};
 };

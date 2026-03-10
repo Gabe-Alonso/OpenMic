@@ -13,6 +13,18 @@
 	const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50 MB
 
 	let profileTags = $state<string[]>(data.profile?.tags ?? []);
+	let profileType = $state<string>((data.profile as any)?.profile_type ?? 'artist');
+	let artistRoles = $state<string[]>((data.profile as any)?.artist_roles ?? []);
+
+	const ARTIST_ROLES = ['Instrumentalist', 'Producer', 'Composer', 'Sound Tech', 'Other'];
+
+	function toggleRole(role: string) {
+		if (artistRoles.includes(role)) {
+			artistRoles = artistRoles.filter((r) => r !== role);
+		} else {
+			artistRoles = [...artistRoles, role];
+		}
+	}
 
 	let confirmDelete = $state(false);
 	let avatarPreview = $state<string | null>(null);
@@ -123,6 +135,14 @@
 				</div>
 
 				<div class="field">
+					<label for="profile_type">Profile Type</label>
+					<select id="profile_type" name="profile_type" bind:value={profileType}>
+						<option value="artist">Artist</option>
+						<option value="venue">Venue</option>
+					</select>
+				</div>
+
+				<div class="field">
 					<label for="location">General Area</label>
 					<LocationSearch
 						value={data.profile?.location ?? ''}
@@ -141,6 +161,23 @@
 					<TagInput tags={profileTags} ontags={(t) => (profileTags = t)} placeholder="Add genre, instrument, style… (Enter or comma)" />
 					<input type="hidden" name="tags" value={JSON.stringify(profileTags)} />
 				</div>
+
+				{#if profileType === 'artist'}
+					<div class="field full">
+						<label>Artist Roles</label>
+						<div class="role-chips">
+							{#each ARTIST_ROLES as role}
+								<button
+									type="button"
+									class="role-chip"
+									class:role-chip-active={artistRoles.includes(role)}
+									onclick={() => toggleRole(role)}
+								>{role}</button>
+							{/each}
+						</div>
+						<input type="hidden" name="artist_roles" value={JSON.stringify(artistRoles)} />
+					</div>
+				{/if}
 			</div>
 
 			<div class="subsection">
@@ -735,5 +772,60 @@
 		color: #dc2626;
 		text-align: center;
 		max-width: 260px;
+	}
+
+	select {
+		width: 100%;
+		padding: 10px 14px;
+		border: 1.5px solid var(--color-border);
+		border-radius: var(--radius-sm);
+		font-size: 0.9rem;
+		background: var(--color-bg);
+		color: var(--color-text);
+		transition: border-color 0.15s;
+		outline: none;
+		font-family: inherit;
+		cursor: pointer;
+	}
+
+	select:focus {
+		border-color: var(--color-primary);
+		background: var(--color-surface);
+	}
+
+	.role-chips {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 8px;
+	}
+
+	.role-chip {
+		padding: 6px 14px;
+		border-radius: 999px;
+		border: 1.5px solid var(--color-border);
+		background: var(--color-bg);
+		color: var(--color-text-muted);
+		font-size: 0.85rem;
+		font-weight: 500;
+		cursor: pointer;
+		transition: border-color 0.15s, background 0.15s, color 0.15s;
+		font-family: inherit;
+	}
+
+	.role-chip:hover {
+		border-color: var(--color-primary);
+		color: var(--color-primary);
+	}
+
+	.role-chip-active {
+		background: var(--color-primary);
+		border-color: var(--color-primary);
+		color: white;
+	}
+
+	.role-chip-active:hover {
+		background: var(--color-primary-dark);
+		border-color: var(--color-primary-dark);
+		color: white;
 	}
 </style>

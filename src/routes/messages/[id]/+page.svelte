@@ -20,6 +20,15 @@
 	let messagesEnd: HTMLDivElement;
 	let channel: any;
 
+	const isGroup = $derived((convo as any).is_group === true);
+
+	// Build a map of participant id -> profile for group chats
+	const participantMap = $derived(
+		Object.fromEntries(
+			((data as any).participants as any[]).map((p: any) => [p.id, p])
+		)
+	);
+
 	const YOUTUBE_RE = /^https?:\/\/(www\.)?(youtube\.com\/watch\?v=|youtu\.be\/)[\w-]+/i;
 
 	function getYouTubeEmbedUrl(url: string): string {
@@ -38,9 +47,7 @@
 
 	function handleNewMessage(payload: any) {
 		const msg = payload.new;
-		// Deduplicate: if we already have this real DB id, skip (API response got here first)
 		if (messages.some((m) => m.id === msg.id)) return;
-		// Replace the sender's optimistic message if one exists
 		const idx = messages.findIndex((m) => m._optimistic && m.sender_id === msg.sender_id);
 		if (idx !== -1) {
 			messages[idx] = msg;
@@ -48,7 +55,6 @@
 			messages = [...messages, msg];
 		}
 		scrollToBottom();
-		// Mark as read if from other person
 		if (msg.sender_id !== data.userId) {
 			fetch(`/api/messages/conversations/${convo.id}/read`, { method: 'POST' });
 		}
@@ -79,7 +85,6 @@
 		const isYT = YOUTUBE_RE.test(trimmed);
 		const type = isYT ? 'youtube' : 'text';
 
-		// Optimistic
 		const optimistic = {
 			id: crypto.randomUUID(),
 			conversation_id: convo.id,
@@ -105,12 +110,10 @@
 			});
 			if (res.ok) {
 				const msg = await res.json();
-				// Replace optimistic with real message (if Realtime hasn't already done it)
 				const hasReal = messages.some((m) => m.id === msg.id);
 				if (!hasReal) {
 					messages = messages.map((m) => (m.id === optimistic.id ? msg : m));
 				} else {
-					// Realtime beat us — just remove the now-redundant optimistic
 					messages = messages.filter((m) => m.id !== optimistic.id);
 				}
 				sendError = null;
@@ -171,7 +174,7 @@
 			return;
 		}
 		await invalidateAll();
-		convo = data.conversation; // sync from freshly loaded server data
+		convo = data.conversation;
 	}
 
 	const lastSentMsg = $derived(
@@ -180,8 +183,6 @@
 
 	onMount(async () => {
 		scrollToBottom();
-
-		// Mark existing unread as read
 		await fetch(`/api/messages/conversations/${convo.id}/read`, { method: 'POST' });
 		await invalidateAll();
 
@@ -201,10 +202,10 @@
 	});
 
 	const isRecipientOfRequest = $derived(
-		convo.request_status === 'pending' && convo.request_from !== data.userId
+		!isGroup && convo.request_status === 'pending' && convo.request_from !== data.userId
 	);
 	const isSenderOfRequest = $derived(
-		convo.request_status === 'pending' && convo.request_from === data.userId
+		!isGroup && convo.request_status === 'pending' && convo.request_from === data.userId
 	);
 	const inputDisabled = $derived(isRecipientOfRequest);
 </script>
@@ -217,17 +218,34 @@
 				<polyline points="15 18 9 12 15 6"/>
 			</svg>
 		</a>
-		<a href="/profile/{data.otherProfile.id}" class="other-profile">
-			{#if data.otherProfile.avatar_url}
-				<img src={data.otherProfile.avatar_url} alt={data.otherProfile.full_name ?? 'User'} class="header-avatar" />
-			{:else}
-				<div class="header-avatar avatar-placeholder">{(data.otherProfile.full_name ?? '?')[0].toUpperCase()}</div>
-			{/if}
-			<span class="header-name">{data.otherProfile.full_name ?? 'Unknown'}</span>
-		</a>
+		{#if isGroup}
+			<div class="group-header-info">
+				<div class="group-header-icon">
+					<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+						<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+						<circle cx="9" cy="7" r="4"/>
+						<path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+						<path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+					</svg>
+				</div>
+				<div class="group-header-text">
+					<span class="header-name">{(convo as any).group_name ?? 'Group Chat'}</span>
+					<span class="group-member-count">{(data as any).participants?.length ?? 0} members</span>
+				</div>
+			</div>
+		{:else}
+			<a href="/profile/{data.otherProfile.id}" class="other-profile">
+				{#if data.otherProfile.avatar_url}
+					<img src={data.otherProfile.avatar_url} alt={data.otherProfile.full_name ?? 'User'} class="header-avatar" />
+				{:else}
+					<div class="header-avatar avatar-placeholder">{(data.otherProfile.full_name ?? '?')[0].toUpperCase()}</div>
+				{/if}
+				<span class="header-name">{data.otherProfile.full_name ?? 'Unknown'}</span>
+			</a>
+		{/if}
 	</div>
 
-	<!-- Message request banners -->
+	<!-- Message request banners (DM only) -->
 	{#if isRecipientOfRequest}
 		<div class="request-banner">
 			<span><strong>{data.otherProfile.full_name ?? 'Someone'}</strong> wants to message you.</span>
@@ -245,19 +263,29 @@
 
 	<!-- Messages -->
 	<div class="messages-wrap">
-		{#each messages as msg (msg.id)}
+		{#each messages as msg, i (msg.id)}
 			{@const isMine = msg.sender_id === data.userId}
 			{@const isLast = msg === lastSentMsg}
+			{@const senderProfile = isGroup && !isMine ? participantMap[msg.sender_id] : null}
+			{@const prevMsg = i > 0 ? messages[i - 1] : null}
+			{@const showSenderLabel = isGroup && !isMine && (!prevMsg || prevMsg.sender_id !== msg.sender_id)}
 			<div class="msg-row" class:mine={isMine}>
 				{#if !isMine}
-					{#if data.otherProfile.avatar_url}
+					{#if senderProfile?.avatar_url}
+						<img src={senderProfile.avatar_url} alt={senderProfile.full_name ?? 'User'} class="msg-avatar" />
+					{:else if !isGroup && data.otherProfile?.avatar_url}
 						<img src={data.otherProfile.avatar_url} alt="" class="msg-avatar" />
 					{:else}
-						<div class="msg-avatar avatar-placeholder">{(data.otherProfile.full_name ?? '?')[0].toUpperCase()}</div>
+						<div class="msg-avatar avatar-placeholder">
+							{((senderProfile?.full_name ?? data.otherProfile?.full_name ?? '?')[0]).toUpperCase()}
+						</div>
 					{/if}
 				{/if}
 
 				<div class="bubble-col" class:mine={isMine}>
+					{#if showSenderLabel}
+						<span class="sender-label">{senderProfile?.full_name ?? 'Unknown'}</span>
+					{/if}
 					<div class="bubble" class:mine={isMine}>
 						{#if msg.message_type === 'image'}
 							<img src={msg.image_url} alt="Sent image" class="msg-img" />
@@ -276,7 +304,7 @@
 					</div>
 					<div class="meta" class:mine={isMine}>
 						<span class="ts">{formatTime(msg.created_at)}</span>
-						{#if isMine && isLast && msg.read_at}
+						{#if isMine && isLast && !isGroup && msg.read_at}
 							<span class="read-receipt">Read</span>
 						{/if}
 					</div>
@@ -286,10 +314,10 @@
 
 		{#if otherTyping}
 			<div class="msg-row">
-				{#if data.otherProfile.avatar_url}
+				{#if !isGroup && data.otherProfile?.avatar_url}
 					<img src={data.otherProfile.avatar_url} alt="" class="msg-avatar" />
 				{:else}
-					<div class="msg-avatar avatar-placeholder">{(data.otherProfile.full_name ?? '?')[0].toUpperCase()}</div>
+					<div class="msg-avatar avatar-placeholder">…</div>
 				{/if}
 				<div class="bubble typing-bubble">
 					<span class="dot"></span>
@@ -401,6 +429,46 @@
 		font-size: 0.95rem;
 	}
 
+	.group-header-info {
+		display: flex;
+		align-items: center;
+		gap: 10px;
+	}
+
+	.group-header-icon {
+		width: 36px;
+		height: 36px;
+		border-radius: 50%;
+		background: var(--color-bg);
+		border: 1.5px solid var(--color-border);
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		color: var(--color-text-muted);
+		flex-shrink: 0;
+	}
+
+	.group-header-text {
+		display: flex;
+		flex-direction: column;
+		gap: 1px;
+	}
+
+	.group-member-count {
+		font-size: 0.75rem;
+		color: var(--color-text-muted);
+	}
+
+	.avatar-placeholder {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		background: var(--color-primary);
+		color: white;
+		font-weight: 700;
+		font-size: 0.75rem;
+	}
+
 	/* Request banners */
 	.request-banner {
 		display: flex;
@@ -468,16 +536,6 @@
 		align-self: flex-end;
 	}
 
-	.avatar-placeholder {
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		background: var(--color-primary);
-		color: white;
-		font-weight: 700;
-		font-size: 0.75rem;
-	}
-
 	.bubble-col {
 		display: flex;
 		flex-direction: column;
@@ -487,6 +545,13 @@
 
 	.bubble-col.mine {
 		align-items: flex-end;
+	}
+
+	.sender-label {
+		font-size: 0.72rem;
+		font-weight: 600;
+		color: var(--color-text-muted);
+		padding: 0 4px;
 	}
 
 	.bubble {

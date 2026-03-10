@@ -5,7 +5,22 @@ export const POST: RequestHandler = async ({ request, locals: { supabase, safeGe
 	const { user } = await safeGetSession();
 	if (!user) throw error(401, 'Unauthorized');
 
-	const { other_user_id } = await request.json();
+	const body = await request.json();
+	const { other_user_id, participant_ids, group_name } = body;
+
+	// Group chat creation
+	if (participant_ids?.length > 0) {
+		if (participant_ids.includes(user.id)) throw error(400, 'Cannot include yourself');
+		if (participant_ids.length >= 10) throw error(400, 'Max 9 other participants');
+		const { data: convoId, error: rpcErr } = await supabase.rpc('create_group_conversation', {
+			p_creator_id: user.id,
+			p_participant_ids: participant_ids,
+			p_group_name: group_name ?? null
+		});
+		if (rpcErr) throw error(500, rpcErr.message);
+		return json({ conversationId: convoId });
+	}
+
 	if (!other_user_id || other_user_id === user.id) throw error(400, 'Invalid user');
 
 	const p1 = user.id < other_user_id ? user.id : other_user_id;

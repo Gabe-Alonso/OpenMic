@@ -12,11 +12,27 @@
 	let visibleArtists = $state(data.artists);
 	let activeArtistId = $state<string | null>(null);
 	let tagFilter = $state<string[]>([]);
+	let roleFilter = $state<string[]>([]);
+
+	const ARTIST_ROLES = ['Instrumentalist', 'Producer', 'Composer', 'Sound Tech', 'Other'];
+
+	function toggleRoleFilter(role: string) {
+		if (roleFilter.includes(role)) {
+			roleFilter = roleFilter.filter((r) => r !== role);
+		} else {
+			roleFilter = [...roleFilter, role];
+		}
+	}
 
 	const displayArtists = $derived(
-		tagFilter.length === 0
-			? visibleArtists
-			: visibleArtists.filter((a) => tagFilter.every((t) => ((a as any).tags ?? []).includes(t)))
+		visibleArtists.filter((a) => {
+			if (tagFilter.length > 0 && !tagFilter.every((t) => ((a as any).tags ?? []).includes(t))) return false;
+			if (roleFilter.length > 0) {
+				const roles: string[] = (a as any).artist_roles ?? [];
+				if (!roleFilter.some((r) => roles.includes(r))) return false;
+			}
+			return true;
+		})
 	);
 
 	// Search state
@@ -227,6 +243,16 @@
 			<div class="tag-filter-row">
 				<TagInput tags={tagFilter} ontags={(t) => (tagFilter = t)} placeholder="Filter by tag…" />
 			</div>
+			<div class="role-filter-row">
+				{#each ARTIST_ROLES as role}
+					<button
+						type="button"
+						class="role-filter-chip"
+						class:role-filter-chip-active={roleFilter.includes(role)}
+						onclick={() => toggleRoleFilter(role)}
+					>{role}</button>
+				{/each}
+			</div>
 		</div>
 
 		<div class="list-header">
@@ -281,6 +307,13 @@
 							{/if}
 							{#if artist.bio}
 								<p class="artist-bio">{artist.bio}</p>
+							{/if}
+							{#if (artist as any).artist_roles?.length > 0}
+								<div class="artist-roles">
+									{#each (artist as any).artist_roles as role}
+										<span class="artist-role">{role}</span>
+									{/each}
+								</div>
 							{/if}
 							{#if (artist as any).tags?.length > 0}
 								<div class="artist-tags">
@@ -469,6 +502,43 @@
 		margin-top: 8px;
 	}
 
+	.role-filter-row {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 6px;
+		margin-top: 8px;
+	}
+
+	.role-filter-chip {
+		padding: 4px 11px;
+		border-radius: 999px;
+		border: 1.5px solid var(--color-border);
+		background: var(--color-bg);
+		color: var(--color-text-muted);
+		font-size: 0.78rem;
+		font-weight: 500;
+		cursor: pointer;
+		transition: border-color 0.12s, background 0.12s, color 0.12s;
+		font-family: inherit;
+	}
+
+	.role-filter-chip:hover {
+		border-color: var(--color-primary);
+		color: var(--color-primary);
+	}
+
+	.role-filter-chip-active {
+		background: var(--color-primary);
+		border-color: var(--color-primary);
+		color: white;
+	}
+
+	.role-filter-chip-active:hover {
+		background: var(--color-primary-dark);
+		border-color: var(--color-primary-dark);
+		color: white;
+	}
+
 	/* List header */
 	.list-header {
 		padding: 16px 20px 12px;
@@ -572,6 +642,23 @@
 		overflow: hidden;
 		line-height: 1.4;
 		margin-top: 2px;
+	}
+
+	.artist-roles {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 4px;
+		margin-top: 4px;
+	}
+
+	.artist-role {
+		font-size: 0.72rem;
+		font-weight: 600;
+		color: var(--color-text-muted);
+		background: var(--color-bg);
+		border: 1px solid var(--color-border);
+		border-radius: 999px;
+		padding: 2px 8px;
 	}
 
 	.artist-tags {
