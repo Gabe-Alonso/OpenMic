@@ -39,6 +39,22 @@
 	let saving = $state(false);
 	let editError = $state<string | null>(null);
 
+	// Delete state
+	let confirmDelete = $state(false);
+	let deleting = $state(false);
+
+	async function deletePost() {
+		if (deleting) return;
+		deleting = true;
+		const res = await fetch(`/api/posts/${post.id}`, { method: 'DELETE' });
+		if (res.ok) {
+			goto('/community');
+		} else {
+			deleting = false;
+			confirmDelete = false;
+		}
+	}
+
 	function startEdit() {
 		editBody = post.body ?? '';
 		editTags = [...postTags];
@@ -373,6 +389,18 @@
 						<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
 						Edit
 					</button>
+					{#if confirmDelete}
+						<span class="delete-confirm-text">Delete this post?</span>
+						<button class="delete-confirm-btn" onclick={deletePost} disabled={deleting}>
+							{deleting ? 'Deleting…' : 'Yes, delete'}
+						</button>
+						<button class="delete-cancel-btn" onclick={() => (confirmDelete = false)}>Cancel</button>
+					{:else}
+						<button class="delete-post-btn" onclick={() => (confirmDelete = true)} title="Delete post">
+							<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+							Delete
+						</button>
+					{/if}
 				{/if}
 
 				<button class="share-btn" onclick={share} class:share-copied={copied}>
@@ -1405,6 +1433,70 @@
 	.edit-post-btn:hover {
 		border-color: var(--color-primary);
 		color: var(--color-primary);
+	}
+
+	.delete-post-btn {
+		display: flex;
+		align-items: center;
+		gap: 5px;
+		background: none;
+		border: 1.5px solid var(--color-border);
+		border-radius: var(--radius-sm);
+		padding: 7px 14px;
+		font-size: 0.8rem;
+		font-weight: 500;
+		color: var(--color-text-muted);
+		cursor: pointer;
+		transition: border-color 0.15s, color 0.15s;
+	}
+
+	.delete-post-btn:hover {
+		border-color: #ef4444;
+		color: #ef4444;
+	}
+
+	.delete-confirm-text {
+		font-size: 0.8rem;
+		color: var(--color-text-muted);
+		white-space: nowrap;
+	}
+
+	.delete-confirm-btn {
+		background: #ef4444;
+		color: white;
+		border: none;
+		border-radius: var(--radius-sm);
+		padding: 7px 14px;
+		font-size: 0.8rem;
+		font-weight: 600;
+		cursor: pointer;
+		transition: background 0.15s, opacity 0.15s;
+	}
+
+	.delete-confirm-btn:hover:not(:disabled) {
+		background: #dc2626;
+	}
+
+	.delete-confirm-btn:disabled {
+		opacity: 0.6;
+		cursor: default;
+	}
+
+	.delete-cancel-btn {
+		background: none;
+		border: 1.5px solid var(--color-border);
+		border-radius: var(--radius-sm);
+		padding: 7px 12px;
+		font-size: 0.8rem;
+		font-weight: 500;
+		color: var(--color-text-muted);
+		cursor: pointer;
+		transition: border-color 0.15s, color 0.15s;
+	}
+
+	.delete-cancel-btn:hover {
+		border-color: var(--color-text-muted);
+		color: var(--color-text);
 	}
 
 	/* Inline edit form */
