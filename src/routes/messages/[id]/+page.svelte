@@ -119,8 +119,9 @@
 				sendError = null;
 			} else {
 				messages = messages.filter((m) => m.id !== optimistic.id);
-				sendError = 'Failed to send. Please try again.';
-				setTimeout(() => { sendError = null; }, 4000);
+				const errBody = await res.json().catch(() => ({}));
+				sendError = `Error ${res.status}: ${errBody?.message ?? errBody?.error ?? 'Failed to send.'}`;
+				setTimeout(() => { sendError = null; }, 8000);
 			}
 		} finally {
 			sending = false;
