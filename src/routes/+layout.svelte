@@ -121,11 +121,9 @@
 					<a href="/venues">Venues</a>
 					<a href="/about">About</a>
 				</div>
-			</nav>
-
-			<!-- Search -->
-		<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-		<div class="search-wrap" role="search" onfocusout={handleSearchFocusOut}>
+				<!-- Search -->
+				<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+				<div class="search-wrap" role="search" onfocusout={handleSearchFocusOut}>
 			<div class="search-input-row">
 				<svg class="search-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
 					<circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
@@ -213,6 +211,7 @@
 				</div>
 			{/if}
 		</div>
+			</nav>
 
 		<div class="nav-right">
 				{#if data.user}
@@ -626,9 +625,7 @@
 	/* Search */
 	.search-wrap {
 		position: relative;
-		flex: 1;
-		max-width: 280px;
-		margin: 0 12px;
+		width: 220px;
 	}
 
 	.search-input-row {
