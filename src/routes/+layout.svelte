@@ -58,6 +58,42 @@
 	function getDisplayName(user: User): string {
 		return (user.user_metadata?.full_name as string) || user.email || 'User';
 	}
+
+	// Search
+	let searchQuery = $state('');
+	let searchResults = $state<{ profiles: any[]; posts: any[] }>({ profiles: [], posts: [] });
+	let searchLoading = $state(false);
+	let showResults = $state(false);
+	let searchTimer: ReturnType<typeof setTimeout> | null = null;
+
+	function handleSearchInput() {
+		const q = searchQuery.trim();
+		if (searchTimer) clearTimeout(searchTimer);
+		if (q.length < 2) {
+			showResults = false;
+			searchResults = { profiles: [], posts: [] };
+			return;
+		}
+		searchLoading = true;
+		showResults = true;
+		searchTimer = setTimeout(async () => {
+			const res = await fetch(`/api/search?q=${encodeURIComponent(q)}`);
+			if (res.ok) searchResults = await res.json();
+			searchLoading = false;
+		}, 280);
+	}
+
+	function handleSearchFocusOut(e: FocusEvent) {
+		if (!(e.currentTarget as Element).contains(e.relatedTarget as Node | null)) {
+			setTimeout(() => { showResults = false; }, 120);
+		}
+	}
+
+	function selectResult() {
+		showResults = false;
+		searchQuery = '';
+		searchResults = { profiles: [], posts: [] };
+	}
 </script>
 
 <svelte:head>
@@ -77,7 +113,98 @@
 				</div>
 			</nav>
 
-			<div class="nav-right">
+			<!-- Search -->
+		<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+		<div class="search-wrap" role="search" onfocusout={handleSearchFocusOut}>
+			<div class="search-input-row">
+				<svg class="search-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+					<circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+				</svg>
+				<input
+					class="search-input"
+					type="search"
+					placeholder="Search artists, venues, #tags…"
+					bind:value={searchQuery}
+					oninput={handleSearchInput}
+					onkeydown={(e) => { if (e.key === 'Escape') { showResults = false; searchQuery = ''; } }}
+					autocomplete="off"
+				/>
+				{#if searchQuery}
+					<button class="search-clear" onclick={() => { searchQuery = ''; showResults = false; }} aria-label="Clear search">
+						<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+					</button>
+				{/if}
+			</div>
+
+			{#if showResults}
+				<div class="search-dropdown">
+					{#if searchLoading}
+						<p class="search-status">Searching…</p>
+					{:else if searchResults.profiles.length === 0 && searchResults.posts.length === 0}
+						<p class="search-status">No results for "{searchQuery}"</p>
+					{:else}
+						{#if searchResults.profiles.length > 0}
+							<div class="result-section">
+								<p class="result-label">People</p>
+								{#each searchResults.profiles as p (p.id)}
+									<a href="/profile/{p.id}" class="result-item" onclick={selectResult}>
+										<div class="result-avatar">
+											{#if p.avatar_url}
+												<img src={p.avatar_url} alt={p.full_name ?? ''} />
+											{:else}
+												{(p.full_name ?? '?')[0]?.toUpperCase()}
+											{/if}
+										</div>
+										<div class="result-text">
+											<div class="result-name-row">
+												<span class="result-name">{p.full_name ?? 'Unknown'}</span>
+												{#if p.profile_type}
+													<span class="result-type-badge">{p.profile_type}</span>
+												{/if}
+											</div>
+											{#if p.location}<p class="result-sub">{p.location}</p>{/if}
+										</div>
+									</a>
+								{/each}
+							</div>
+						{/if}
+
+						{#if searchResults.profiles.length > 0 && searchResults.posts.length > 0}
+							<div class="result-divider"></div>
+						{/if}
+
+						{#if searchResults.posts.length > 0}
+							<div class="result-section">
+								<p class="result-label">Posts</p>
+								{#each searchResults.posts as post (post.id)}
+									<a href="/community" class="result-item" onclick={selectResult}>
+										<div class="result-avatar">
+											{#if post.author?.avatar_url}
+												<img src={post.author.avatar_url} alt={post.author?.full_name ?? ''} />
+											{:else}
+												{(post.author?.full_name ?? '?')[0]?.toUpperCase()}
+											{/if}
+										</div>
+										<div class="result-text">
+											{#if post.tags?.length}
+												<div class="result-tags">
+													{#each post.tags as t}
+														<span class="result-tag">#{t}</span>
+													{/each}
+												</div>
+											{/if}
+											<p class="result-content">{post.content}</p>
+										</div>
+									</a>
+								{/each}
+							</div>
+						{/if}
+					{/if}
+				</div>
+			{/if}
+		</div>
+
+		<div class="nav-right">
 				{#if data.user}
 				<a href="/messages" class="envelope-btn" aria-label="Messages">
 					<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -377,5 +504,214 @@
 
 	main {
 		padding: 28px 20px;
+	}
+
+	/* Search */
+	.search-wrap {
+		position: relative;
+		flex: 1;
+		max-width: 280px;
+		margin: 0 12px;
+	}
+
+	.search-input-row {
+		display: flex;
+		align-items: center;
+		gap: 7px;
+		background: var(--color-bg);
+		border: 1.5px solid var(--color-border);
+		border-radius: var(--radius-sm);
+		padding: 7px 10px;
+		transition: border-color 0.15s, background 0.15s;
+	}
+
+	.search-input-row:focus-within {
+		border-color: var(--color-primary);
+		background: var(--color-surface);
+	}
+
+	.search-icon {
+		color: var(--color-text-muted);
+		flex-shrink: 0;
+	}
+
+	.search-input {
+		flex: 1;
+		border: none;
+		background: none;
+		font-size: 0.85rem;
+		color: var(--color-text);
+		outline: none;
+		font-family: inherit;
+		min-width: 0;
+	}
+
+	.search-input::placeholder {
+		color: var(--color-text-muted);
+		opacity: 0.7;
+	}
+
+	/* hide browser's built-in clear button */
+	.search-input::-webkit-search-cancel-button { display: none; }
+
+	.search-clear {
+		background: none;
+		border: none;
+		padding: 0;
+		cursor: pointer;
+		color: var(--color-text-muted);
+		display: flex;
+		align-items: center;
+		flex-shrink: 0;
+		transition: color 0.15s;
+	}
+
+	.search-clear:hover {
+		color: var(--color-text);
+	}
+
+	.search-dropdown {
+		position: absolute;
+		top: calc(100% + 8px);
+		left: 0;
+		right: 0;
+		background: var(--color-surface);
+		border: 1px solid var(--color-border);
+		border-radius: var(--radius-md);
+		box-shadow: var(--shadow-md);
+		z-index: 300;
+		max-height: 420px;
+		overflow-y: auto;
+	}
+
+	.result-section {
+		padding: 6px;
+	}
+
+	.result-label {
+		font-size: 0.68rem;
+		font-weight: 700;
+		text-transform: uppercase;
+		letter-spacing: 0.07em;
+		color: var(--color-text-muted);
+		padding: 4px 8px 5px;
+		margin: 0;
+	}
+
+	.result-item {
+		display: flex;
+		align-items: center;
+		gap: 10px;
+		padding: 8px;
+		border-radius: var(--radius-sm);
+		text-decoration: none;
+		color: var(--color-text);
+		transition: background 0.1s;
+	}
+
+	.result-item:hover {
+		background: var(--color-bg);
+	}
+
+	.result-avatar {
+		width: 32px;
+		height: 32px;
+		border-radius: 50%;
+		background: var(--color-primary);
+		color: white;
+		font-size: 0.8rem;
+		font-weight: 700;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		flex-shrink: 0;
+		overflow: hidden;
+	}
+
+	.result-avatar img {
+		width: 100%;
+		height: 100%;
+		object-fit: cover;
+	}
+
+	.result-text {
+		flex: 1;
+		min-width: 0;
+		display: flex;
+		flex-direction: column;
+		gap: 2px;
+	}
+
+	.result-name-row {
+		display: flex;
+		align-items: center;
+		gap: 6px;
+	}
+
+	.result-name {
+		font-size: 0.875rem;
+		font-weight: 600;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+
+	.result-type-badge {
+		font-size: 0.65rem;
+		padding: 2px 6px;
+		border-radius: 999px;
+		background: var(--color-primary-light);
+		color: var(--color-primary);
+		font-weight: 600;
+		text-transform: capitalize;
+		flex-shrink: 0;
+	}
+
+	.result-sub {
+		font-size: 0.75rem;
+		color: var(--color-text-muted);
+		margin: 0;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+
+	.result-tags {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 3px;
+	}
+
+	.result-tag {
+		font-size: 0.68rem;
+		padding: 1px 6px;
+		background: var(--color-bg);
+		border: 1px solid var(--color-border);
+		border-radius: 999px;
+		color: var(--color-text-muted);
+	}
+
+	.result-content {
+		font-size: 0.78rem;
+		color: var(--color-text-muted);
+		margin: 0;
+		display: -webkit-box;
+		-webkit-line-clamp: 2;
+		-webkit-box-orient: vertical;
+		overflow: hidden;
+	}
+
+	.result-divider {
+		height: 1px;
+		background: var(--color-border);
+		margin: 2px 8px;
+	}
+
+	.search-status {
+		padding: 14px 16px;
+		text-align: center;
+		font-size: 0.825rem;
+		color: var(--color-text-muted);
+		margin: 0;
 	}
 </style>
