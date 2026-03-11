@@ -81,6 +81,61 @@
 	function closeFollowModal() {
 		followModal = null;
 	}
+
+	// Calendar
+	const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+	let calYear = $state(new Date().getFullYear());
+	let calMonth = $state(new Date().getMonth());
+	let selectedDay = $state<string | null>(null);
+
+	function dateKey(d: Date): string {
+		return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+	}
+	const monthLabel = $derived(`${MONTH_NAMES[calMonth]} ${calYear}`);
+	function prevMonth() {
+		if (calMonth === 0) { calMonth = 11; calYear--; } else calMonth--;
+		selectedDay = null;
+	}
+	function nextMonth() {
+		if (calMonth === 11) { calMonth = 0; calYear++; } else calMonth++;
+		selectedDay = null;
+	}
+	const calGrid = $derived.by(() => {
+		const firstDay = new Date(calYear, calMonth, 1);
+		const lastDay = new Date(calYear, calMonth + 1, 0);
+		const startDow = firstDay.getDay();
+		const cells: { date: Date; isCurrentMonth: boolean }[] = [];
+		for (let i = 0; i < startDow; i++) {
+			cells.push({ date: new Date(calYear, calMonth, 1 - (startDow - i)), isCurrentMonth: false });
+		}
+		for (let d = 1; d <= lastDay.getDate(); d++) {
+			cells.push({ date: new Date(calYear, calMonth, d), isCurrentMonth: true });
+		}
+		const rem = (7 - (cells.length % 7)) % 7;
+		for (let i = 1; i <= rem; i++) {
+			cells.push({ date: new Date(calYear, calMonth + 1, i), isCurrentMonth: false });
+		}
+		return cells;
+	});
+	const eventsByDate = $derived.by(() => {
+		const map = new Map<string, any[]>();
+		for (const ev of (data as any).venueEvents ?? []) {
+			if (!map.has(ev.date)) map.set(ev.date, []);
+			map.get(ev.date)!.push(ev);
+		}
+		return map;
+	});
+	function formatTime(t: string | null | undefined): string {
+		if (!t) return '';
+		const [h, m] = t.split(':').map(Number);
+		const ampm = h >= 12 ? 'PM' : 'AM';
+		const hour = h % 12 || 12;
+		return `${hour}:${String(m).padStart(2,'0')} ${ampm}`;
+	}
+	function formatSelectedDay(dateStr: string): string {
+		const [y, mo, d] = dateStr.split('-').map(Number);
+		return new Date(y, mo - 1, d).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+	}
 </script>
 
 <div class="public-profile">
@@ -198,6 +253,67 @@
 					{/if}
 				</div>
 			</div>
+		{/if}
+	</div>
+
+	<div class="card">
+		<div class="cal-header">
+			<h2 class="card-title">Events</h2>
+			<div class="cal-nav">
+				<button class="cal-nav-btn" onclick={prevMonth}>
+					<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="m15 18-6-6 6-6"/></svg>
+				</button>
+				<span class="cal-month-label">{monthLabel}</span>
+				<button class="cal-nav-btn" onclick={nextMonth}>
+					<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="m9 18 6-6-6-6"/></svg>
+				</button>
+			</div>
+		</div>
+
+		<div class="cal-grid">
+			{#each ['Su','Mo','Tu','We','Th','Fr','Sa'] as dow}
+				<div class="cal-dow">{dow}</div>
+			{/each}
+			{#each calGrid as cell (dateKey(cell.date))}
+				{@const key = dateKey(cell.date)}
+				{@const hasEvs = eventsByDate.has(key)}
+				<button
+					class="cal-day"
+					class:other-month={!cell.isCurrentMonth}
+					class:has-events={hasEvs}
+					class:selected={selectedDay === key}
+					onclick={() => { selectedDay = selectedDay === key ? null : key; }}
+				>
+					<span class="day-num">{cell.date.getDate()}</span>
+					{#if hasEvs}<span class="event-dot"></span>{/if}
+				</button>
+			{/each}
+		</div>
+
+		{#if selectedDay}
+			<div class="day-panel">
+				<h3 class="day-panel-title">{formatSelectedDay(selectedDay)}</h3>
+				{#each (eventsByDate.get(selectedDay) ?? []) as ev (ev.id)}
+					<div class="event-item">
+						<div class="event-time-badge">
+							{#if ev.start_time}
+								{formatTime(ev.start_time)}{ev.end_time ? ` – ${formatTime(ev.end_time)}` : ''}
+							{:else}
+								All day
+							{/if}
+						</div>
+						<div class="event-info">
+							<p class="event-title">{ev.title}</p>
+							{#if ev.description}<p class="event-desc">{ev.description}</p>{/if}
+						</div>
+					</div>
+				{/each}
+				{#if !(eventsByDate.get(selectedDay)?.length)}
+					<p class="no-events-msg">No events scheduled for this day.</p>
+				{/if}
+			</div>
+		{:else if ((data as any).venueEvents ?? []).length === 0}
+			<p class="cal-empty">No events scheduled yet.</p>
 		{/if}
 	</div>
 
@@ -719,5 +835,159 @@
 		text-align: center;
 		font-size: 0.875rem;
 		color: var(--color-text-muted);
+	}
+
+	/* Calendar */
+	.cal-header {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		margin-bottom: 16px;
+	}
+	.cal-header .card-title {
+		margin-bottom: 0;
+	}
+	.cal-nav {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+	}
+	.cal-nav-btn {
+		background: none;
+		border: 1px solid var(--color-border);
+		border-radius: var(--radius-sm);
+		padding: 5px 8px;
+		cursor: pointer;
+		display: flex;
+		align-items: center;
+		color: var(--color-text-muted);
+		transition: background 0.15s, color 0.15s;
+	}
+	.cal-nav-btn:hover {
+		background: var(--color-bg);
+		color: var(--color-text);
+	}
+	.cal-month-label {
+		font-size: 0.9rem;
+		font-weight: 600;
+		min-width: 140px;
+		text-align: center;
+	}
+	.cal-grid {
+		display: grid;
+		grid-template-columns: repeat(7, 1fr);
+		gap: 2px;
+		margin-bottom: 12px;
+	}
+	.cal-dow {
+		text-align: center;
+		font-size: 0.68rem;
+		font-weight: 600;
+		color: var(--color-text-muted);
+		padding: 6px 0;
+		text-transform: uppercase;
+		letter-spacing: 0.05em;
+	}
+	.cal-day {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		justify-content: center;
+		aspect-ratio: 1;
+		border-radius: var(--radius-sm);
+		border: 1.5px solid transparent;
+		background: none;
+		cursor: pointer;
+		transition: background 0.1s, border-color 0.1s;
+		gap: 3px;
+		font-family: inherit;
+		min-width: 0;
+		padding: 0;
+	}
+	.cal-day:hover:not(.other-month) {
+		background: var(--color-bg);
+	}
+	.day-num {
+		font-size: 0.85rem;
+		font-weight: 500;
+		line-height: 1;
+	}
+	.cal-day.other-month .day-num {
+		color: var(--color-text-muted);
+		opacity: 0.35;
+	}
+	.event-dot {
+		width: 5px;
+		height: 5px;
+		border-radius: 50%;
+		background: var(--color-primary);
+		flex-shrink: 0;
+	}
+	.cal-day.has-events:not(.selected) {
+		background: var(--color-primary-light);
+	}
+	.cal-day.selected {
+		border-color: var(--color-primary);
+		background: var(--color-primary);
+	}
+	.cal-day.selected .day-num {
+		color: white;
+	}
+	.cal-day.selected .event-dot {
+		background: white;
+	}
+	.day-panel {
+		border-top: 1px solid var(--color-border);
+		padding-top: 16px;
+		display: flex;
+		flex-direction: column;
+		gap: 12px;
+	}
+	.day-panel-title {
+		font-size: 0.8rem;
+		font-weight: 600;
+		color: var(--color-text-muted);
+		text-transform: uppercase;
+		letter-spacing: 0.05em;
+		margin: 0;
+	}
+	.event-item {
+		display: flex;
+		gap: 14px;
+		align-items: flex-start;
+	}
+	.event-time-badge {
+		font-size: 0.78rem;
+		color: var(--color-primary);
+		font-weight: 600;
+		white-space: nowrap;
+		padding-top: 2px;
+		min-width: 90px;
+	}
+	.event-info .event-title {
+		font-size: 0.9rem;
+		font-weight: 600;
+		margin: 0;
+	}
+	.event-desc {
+		font-size: 0.825rem;
+		color: var(--color-text-muted);
+		margin: 4px 0 0;
+		line-height: 1.5;
+	}
+	.no-events-msg {
+		font-size: 0.875rem;
+		color: var(--color-text-muted);
+		text-align: center;
+		padding: 16px 0;
+		margin: 0;
+	}
+	.cal-empty {
+		font-size: 0.875rem;
+		color: var(--color-text-muted);
+		text-align: center;
+		padding: 20px 0 8px;
+		border-top: 1px solid var(--color-border);
+		margin-top: 4px;
 	}
 </style>

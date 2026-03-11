@@ -32,7 +32,13 @@ export const load: PageServerLoad = async ({ locals: { safeGetSession, supabase 
 		}
 	}
 
-	return { user, profile, posts: postsData, likeCounts };
+	const { data: venueEvents } = await supabase
+		.from('venue_events')
+		.select('*')
+		.eq('profile_id', user.id)
+		.order('date', { ascending: true });
+
+	return { user, profile, posts: postsData, likeCounts, venueEvents: venueEvents ?? [] };
 };
 
 export const actions: Actions = {
@@ -87,6 +93,49 @@ export const actions: Actions = {
 
 		if (error) return fail(500, { toggleError: error.message });
 		return {};
+	},
+
+	createEvent: async ({ request, locals: { supabase, safeGetSession } }) => {
+		const { user } = await safeGetSession();
+		if (!user) throw redirect(303, '/signin');
+		const data = await request.formData();
+		const { error } = await supabase.from('venue_events').insert({
+			profile_id: user.id,
+			title: data.get('title') as string,
+			date: data.get('date') as string,
+			start_time: (data.get('start_time') as string) || null,
+			end_time: (data.get('end_time') as string) || null,
+			description: (data.get('description') as string) || null
+		});
+		if (error) return fail(500, { eventError: error.message });
+		return { eventCreated: true };
+	},
+
+	updateEvent: async ({ request, locals: { supabase, safeGetSession } }) => {
+		const { user } = await safeGetSession();
+		if (!user) throw redirect(303, '/signin');
+		const data = await request.formData();
+		const eventId = data.get('event_id') as string;
+		const { error } = await supabase.from('venue_events').update({
+			title: data.get('title') as string,
+			date: data.get('date') as string,
+			start_time: (data.get('start_time') as string) || null,
+			end_time: (data.get('end_time') as string) || null,
+			description: (data.get('description') as string) || null
+		}).eq('id', eventId).eq('profile_id', user.id);
+		if (error) return fail(500, { eventError: error.message });
+		return { eventUpdated: true };
+	},
+
+	deleteEvent: async ({ request, locals: { supabase, safeGetSession } }) => {
+		const { user } = await safeGetSession();
+		if (!user) throw redirect(303, '/signin');
+		const data = await request.formData();
+		const eventId = data.get('event_id') as string;
+		const { error } = await supabase.from('venue_events').delete()
+			.eq('id', eventId).eq('profile_id', user.id);
+		if (error) return fail(500, { eventError: error.message });
+		return { eventDeleted: true };
 	},
 
 	deleteAccount: async ({ locals: { supabase, safeGetSession } }) => {

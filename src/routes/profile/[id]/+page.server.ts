@@ -95,6 +95,9 @@ export const load: PageServerLoad = async ({ params, locals: { supabase, safeGet
 	const mutuals =
 		user && !isOwnProfile ? await getMutuals(supabase, user.id, params.id) : [];
 
+	const { data: venueEventsRaw } = await supabase
+		.from('venue_events').select('*').eq('profile_id', params.id).order('date', { ascending: true });
+
 	return {
 		profile,
 		posts: postsData,
@@ -103,6 +106,7 @@ export const load: PageServerLoad = async ({ params, locals: { supabase, safeGet
 		followingCount: followingRes.count ?? 0,
 		userFollows: !!userFollowsRes.data,
 		isOwnProfile,
-		mutuals
+		mutuals,
+		venueEvents: venueEventsRaw ?? []
 	};
 };

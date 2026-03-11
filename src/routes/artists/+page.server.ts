@@ -5,6 +5,7 @@ export const load: PageServerLoad = async ({ locals: { supabase } }) => {
 		.from('profiles')
 		.select('id, full_name, avatar_url, location, location_lat, location_lng, bio, tags, profile_type, artist_roles')
 		.eq('discoverable', true)
+		.eq('profile_type', 'artist')
 		.not('location_lat', 'is', null)
 		.not('location_lng', 'is', null);
 

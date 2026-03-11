@@ -26,6 +26,76 @@
 		}
 	}
 
+	// Calendar state (venue profiles only)
+	const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+	let calYear = $state(new Date().getFullYear());
+	let calMonth = $state(new Date().getMonth());
+	let selectedDay = $state<string | null>(null);
+
+	type VenueEvent = { id: string; title: string; date: string; start_time: string | null; end_time: string | null; description: string | null };
+	let eventModal = $state<{ editing?: VenueEvent; prefillDate?: string } | null>(null);
+
+	$effect(() => {
+		if ((form as any)?.eventCreated || (form as any)?.eventUpdated) {
+			eventModal = null;
+		}
+	});
+
+	function dateKey(d: Date): string {
+		return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+	}
+	const monthLabel = $derived(`${MONTH_NAMES[calMonth]} ${calYear}`);
+	function prevMonth() {
+		if (calMonth === 0) { calMonth = 11; calYear--; } else calMonth--;
+		selectedDay = null;
+	}
+	function nextMonth() {
+		if (calMonth === 11) { calMonth = 0; calYear++; } else calMonth++;
+		selectedDay = null;
+	}
+	const calGrid = $derived.by(() => {
+		const firstDay = new Date(calYear, calMonth, 1);
+		const lastDay = new Date(calYear, calMonth + 1, 0);
+		const startDow = firstDay.getDay();
+		const cells: { date: Date; isCurrentMonth: boolean }[] = [];
+		for (let i = 0; i < startDow; i++) {
+			cells.push({ date: new Date(calYear, calMonth, 1 - (startDow - i)), isCurrentMonth: false });
+		}
+		for (let d = 1; d <= lastDay.getDate(); d++) {
+			cells.push({ date: new Date(calYear, calMonth, d), isCurrentMonth: true });
+		}
+		const rem = (7 - (cells.length % 7)) % 7;
+		for (let i = 1; i <= rem; i++) {
+			cells.push({ date: new Date(calYear, calMonth + 1, i), isCurrentMonth: false });
+		}
+		return cells;
+	});
+	const eventsByDate = $derived.by(() => {
+		const map = new Map<string, any[]>();
+		for (const ev of (data as any).venueEvents ?? []) {
+			if (!map.has(ev.date)) map.set(ev.date, []);
+			map.get(ev.date)!.push(ev);
+		}
+		return map;
+	});
+	function formatTime(t: string | null | undefined): string {
+		if (!t) return '';
+		const [h, m] = t.split(':').map(Number);
+		const ampm = h >= 12 ? 'PM' : 'AM';
+		const hour = h % 12 || 12;
+		return `${hour}:${String(m).padStart(2,'0')} ${ampm}`;
+	}
+	function formatSelectedDay(dateStr: string): string {
+		const [y, mo, d] = dateStr.split('-').map(Number);
+		return new Date(y, mo - 1, d).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+	}
+	function openAddEvent() {
+		eventModal = { prefillDate: selectedDay ?? undefined };
+	}
+	function openEditEvent(ev: VenueEvent) {
+		eventModal = { editing: ev };
+	}
+
 	let confirmDelete = $state(false);
 	let avatarPreview = $state<string | null>(null);
 	let avatarUploading = $state(false);
@@ -229,6 +299,80 @@
 		{/if}
 	</div>
 
+	<!-- Events Calendar -->
+	<div class="card">
+		<div class="section-header">
+			<h2 class="card-title">Events Calendar</h2>
+			<button type="button" class="new-post-btn" onclick={openAddEvent}>+ Add Event</button>
+		</div>
+
+		<div class="cal-header-nav">
+			<button class="cal-nav-btn" onclick={prevMonth}>
+				<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="m15 18-6-6 6-6"/></svg>
+			</button>
+			<span class="cal-month-label">{monthLabel}</span>
+			<button class="cal-nav-btn" onclick={nextMonth}>
+				<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="m9 18 6-6-6-6"/></svg>
+			</button>
+		</div>
+
+		<div class="cal-grid">
+			{#each ['Su','Mo','Tu','We','Th','Fr','Sa'] as dow}
+				<div class="cal-dow">{dow}</div>
+			{/each}
+			{#each calGrid as cell (dateKey(cell.date))}
+				{@const key = dateKey(cell.date)}
+				{@const hasEvs = eventsByDate.has(key)}
+				<button
+					class="cal-day"
+					class:other-month={!cell.isCurrentMonth}
+					class:has-events={hasEvs}
+					class:selected={selectedDay === key}
+					onclick={() => { selectedDay = selectedDay === key ? null : key; }}
+				>
+					<span class="day-num">{cell.date.getDate()}</span>
+					{#if hasEvs}<span class="event-dot"></span>{/if}
+				</button>
+			{/each}
+		</div>
+
+		{#if selectedDay}
+			<div class="day-panel">
+				<div class="day-panel-header">
+					<h3 class="day-panel-title">{formatSelectedDay(selectedDay)}</h3>
+					<button type="button" class="add-day-event-btn" onclick={openAddEvent}>+ Add</button>
+				</div>
+				{#each (eventsByDate.get(selectedDay) ?? []) as ev (ev.id)}
+					<div class="event-item-editor">
+						<div class="event-time-badge">
+							{#if ev.start_time}
+								{formatTime(ev.start_time)}{ev.end_time ? ` – ${formatTime(ev.end_time)}` : ''}
+							{:else}
+								All day
+							{/if}
+						</div>
+						<div class="event-info">
+							<p class="event-title">{ev.title}</p>
+							{#if ev.description}<p class="event-desc">{ev.description}</p>{/if}
+						</div>
+						<div class="event-actions">
+							<button type="button" class="edit-event-btn" onclick={() => openEditEvent(ev)}>Edit</button>
+							<form method="POST" action="?/deleteEvent" use:enhance>
+								<input type="hidden" name="event_id" value={ev.id} />
+								<button type="submit" class="del-event-btn">Delete</button>
+							</form>
+						</div>
+					</div>
+				{/each}
+				{#if !(eventsByDate.get(selectedDay)?.length)}
+					<p class="no-events-msg">No events on this day. <button type="button" class="inline-link-btn" onclick={openAddEvent}>Add one</button></p>
+				{/if}
+			</div>
+		{:else}
+			<p class="cal-hint">Click a day to view or manage events.</p>
+		{/if}
+	</div>
+
 	<!-- Account Settings -->
 	<div class="card">
 		<h2 class="card-title">Account Settings</h2>
@@ -284,6 +428,63 @@
 	</div>
 
 </div>
+
+{#if eventModal !== null}
+	<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+	<div
+		class="event-modal-backdrop"
+		role="dialog"
+		aria-modal="true"
+		tabindex="-1"
+		onkeydown={(e) => { if (e.key === 'Escape') eventModal = null; }}
+		onclick={(e) => { if (e.target === e.currentTarget) eventModal = null; }}
+	>
+		<div class="event-modal">
+			<h3 class="event-modal-title">{eventModal.editing ? 'Edit Event' : 'Add Event'}</h3>
+			{#if (form as any)?.eventError}
+				<p class="error-msg">{(form as any).eventError}</p>
+			{/if}
+			<form
+				method="POST"
+				action={eventModal.editing ? '?/updateEvent' : '?/createEvent'}
+				use:enhance
+			>
+				{#if eventModal.editing}
+					<input type="hidden" name="event_id" value={eventModal.editing.id} />
+				{/if}
+				<div class="event-form-grid">
+					<div class="field full">
+						<label for="ev-title">Title</label>
+						<input id="ev-title" name="title" required placeholder="Event name" value={eventModal.editing?.title ?? ''} />
+					</div>
+					<div class="field">
+						<label for="ev-date">Date</label>
+						<input id="ev-date" name="date" type="date" required value={eventModal.editing?.date ?? eventModal.prefillDate ?? ''} />
+					</div>
+					<div class="field">
+						<!-- spacer -->
+					</div>
+					<div class="field">
+						<label for="ev-start">Start Time</label>
+						<input id="ev-start" name="start_time" type="time" value={eventModal.editing?.start_time ?? ''} />
+					</div>
+					<div class="field">
+						<label for="ev-end">End Time</label>
+						<input id="ev-end" name="end_time" type="time" value={eventModal.editing?.end_time ?? ''} />
+					</div>
+					<div class="field full">
+						<label for="ev-desc">Description</label>
+						<textarea id="ev-desc" name="description" rows={3} placeholder="Optional details…">{eventModal.editing?.description ?? ''}</textarea>
+					</div>
+				</div>
+				<div class="event-modal-actions">
+					<button type="button" class="cancel-btn" onclick={() => eventModal = null}>Cancel</button>
+					<button type="submit" class="save-btn">{eventModal.editing ? 'Save Changes' : 'Add Event'}</button>
+				</div>
+			</form>
+		</div>
+	</div>
+{/if}
 
 <style>
 	.profile-page {
@@ -827,5 +1028,272 @@
 		background: var(--color-primary-dark);
 		border-color: var(--color-primary-dark);
 		color: white;
+	}
+
+	/* Calendar */
+	.cal-header-nav {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		gap: 12px;
+		margin-bottom: 16px;
+	}
+	.cal-nav-btn {
+		background: none;
+		border: 1px solid var(--color-border);
+		border-radius: var(--radius-sm);
+		padding: 5px 8px;
+		cursor: pointer;
+		display: flex;
+		align-items: center;
+		color: var(--color-text-muted);
+		transition: background 0.15s, color 0.15s;
+	}
+	.cal-nav-btn:hover {
+		background: var(--color-bg);
+		color: var(--color-text);
+	}
+	.cal-month-label {
+		font-size: 0.9rem;
+		font-weight: 600;
+		min-width: 140px;
+		text-align: center;
+	}
+	.cal-grid {
+		display: grid;
+		grid-template-columns: repeat(7, 1fr);
+		gap: 2px;
+		margin-bottom: 12px;
+	}
+	.cal-dow {
+		text-align: center;
+		font-size: 0.68rem;
+		font-weight: 600;
+		color: var(--color-text-muted);
+		padding: 6px 0;
+		text-transform: uppercase;
+		letter-spacing: 0.05em;
+	}
+	.cal-day {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		justify-content: center;
+		aspect-ratio: 1;
+		border-radius: var(--radius-sm);
+		border: 1.5px solid transparent;
+		background: none;
+		cursor: pointer;
+		transition: background 0.1s, border-color 0.1s;
+		gap: 3px;
+		font-family: inherit;
+		min-width: 0;
+		padding: 0;
+	}
+	.cal-day:hover:not(.other-month) {
+		background: var(--color-bg);
+	}
+	.day-num {
+		font-size: 0.85rem;
+		font-weight: 500;
+		line-height: 1;
+	}
+	.cal-day.other-month .day-num {
+		color: var(--color-text-muted);
+		opacity: 0.35;
+	}
+	.event-dot {
+		width: 5px;
+		height: 5px;
+		border-radius: 50%;
+		background: var(--color-primary);
+		flex-shrink: 0;
+	}
+	.cal-day.has-events:not(.selected) {
+		background: var(--color-primary-light);
+	}
+	.cal-day.selected {
+		border-color: var(--color-primary);
+		background: var(--color-primary);
+	}
+	.cal-day.selected .day-num {
+		color: white;
+	}
+	.cal-day.selected .event-dot {
+		background: white;
+	}
+	.day-panel {
+		border-top: 1px solid var(--color-border);
+		padding-top: 16px;
+		display: flex;
+		flex-direction: column;
+		gap: 10px;
+	}
+	.day-panel-header {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+	}
+	.day-panel-title {
+		font-size: 0.8rem;
+		font-weight: 600;
+		color: var(--color-text-muted);
+		text-transform: uppercase;
+		letter-spacing: 0.05em;
+		margin: 0;
+	}
+	.add-day-event-btn {
+		background: none;
+		border: 1px solid var(--color-border);
+		border-radius: var(--radius-sm);
+		padding: 4px 10px;
+		font-size: 0.78rem;
+		font-weight: 500;
+		cursor: pointer;
+		color: var(--color-text-muted);
+		font-family: inherit;
+		transition: background 0.15s, color 0.15s, border-color 0.15s;
+	}
+	.add-day-event-btn:hover {
+		background: var(--color-primary-light);
+		color: var(--color-primary);
+		border-color: var(--color-primary);
+	}
+	.event-item-editor {
+		display: flex;
+		gap: 14px;
+		align-items: flex-start;
+		padding: 12px;
+		border: 1px solid var(--color-border);
+		border-radius: var(--radius-sm);
+		background: var(--color-bg);
+	}
+	.event-time-badge {
+		font-size: 0.78rem;
+		color: var(--color-primary);
+		font-weight: 600;
+		white-space: nowrap;
+		padding-top: 2px;
+		min-width: 90px;
+	}
+	.event-info {
+		flex: 1;
+		min-width: 0;
+	}
+	.event-info .event-title {
+		font-size: 0.9rem;
+		font-weight: 600;
+		margin: 0;
+	}
+	.event-info .event-desc {
+		font-size: 0.825rem;
+		color: var(--color-text-muted);
+		margin: 4px 0 0;
+		line-height: 1.5;
+	}
+	.event-actions {
+		display: flex;
+		gap: 6px;
+		align-items: center;
+		flex-shrink: 0;
+	}
+	.edit-event-btn {
+		background: none;
+		border: 1px solid var(--color-border);
+		border-radius: var(--radius-sm);
+		padding: 4px 10px;
+		font-size: 0.78rem;
+		font-weight: 500;
+		cursor: pointer;
+		color: var(--color-text-muted);
+		font-family: inherit;
+		transition: background 0.15s;
+	}
+	.edit-event-btn:hover {
+		background: var(--color-bg);
+		color: var(--color-text);
+	}
+	.del-event-btn {
+		background: none;
+		border: 1px solid #fecaca;
+		border-radius: var(--radius-sm);
+		padding: 4px 10px;
+		font-size: 0.78rem;
+		font-weight: 500;
+		cursor: pointer;
+		color: #dc2626;
+		font-family: inherit;
+		transition: background 0.15s;
+	}
+	.del-event-btn:hover {
+		background: #fff8f8;
+	}
+	.no-events-msg {
+		font-size: 0.875rem;
+		color: var(--color-text-muted);
+		text-align: center;
+		padding: 16px 0;
+		margin: 0;
+	}
+	.inline-link-btn {
+		background: none;
+		border: none;
+		padding: 0;
+		font: inherit;
+		color: var(--color-primary);
+		cursor: pointer;
+		text-decoration: underline;
+	}
+	.cal-hint {
+		font-size: 0.825rem;
+		color: var(--color-text-muted);
+		text-align: center;
+		border-top: 1px solid var(--color-border);
+		padding-top: 14px;
+		margin: 0;
+	}
+
+	/* Event modal */
+	.event-modal-backdrop {
+		position: fixed;
+		inset: 0;
+		background: rgba(0, 0, 0, 0.45);
+		z-index: 1000;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+	}
+	.event-modal {
+		background: var(--color-surface);
+		border: 1px solid var(--color-border);
+		border-radius: var(--radius-lg);
+		box-shadow: var(--shadow-md);
+		width: 460px;
+		max-width: calc(100vw - 32px);
+		padding: 28px;
+	}
+	.event-modal-title {
+		font-size: 1.05rem;
+		font-weight: 700;
+		margin: 0 0 20px;
+	}
+	.event-form-grid {
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+		gap: 14px;
+	}
+	.event-form-grid .field {
+		display: flex;
+		flex-direction: column;
+		gap: 6px;
+	}
+	.event-form-grid .field.full {
+		grid-column: 1 / -1;
+	}
+	.event-modal-actions {
+		display: flex;
+		gap: 10px;
+		margin-top: 20px;
+		justify-content: flex-end;
 	}
 </style>
