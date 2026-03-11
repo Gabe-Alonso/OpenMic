@@ -159,15 +159,13 @@
 
 	.contact-item {
 		display: flex;
-		align-items: center;
-		gap: 12px;
+		flex-direction: column;
+		gap: 4px;
 		font-size: 0.875rem;
 	}
 
 	.contact-label {
 		color: var(--color-text-muted);
-		min-width: 160px;
-		flex-shrink: 0;
 	}
 
 	.contact-value {

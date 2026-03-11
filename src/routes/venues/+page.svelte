@@ -812,4 +812,31 @@
 	:global(.mapboxgl-popup-tip) {
 		border-top-color: white !important;
 	}
+
+	@media (max-width: 768px) {
+		.venues-page {
+			flex-direction: column;
+			height: auto;
+			overflow: visible;
+			margin: -16px -12px;
+		}
+
+		.map-panel {
+			height: 50vh;
+			flex: none;
+		}
+
+		.list-panel {
+			width: 100%;
+			flex: none;
+			border-left: none;
+			border-top: 1px solid var(--color-border);
+			overflow: visible;
+		}
+
+		.venue-list {
+			overflow-y: visible;
+			flex: none;
+		}
+	}
 </style>

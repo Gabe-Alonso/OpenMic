@@ -94,6 +94,16 @@
 		searchQuery = '';
 		searchResults = { profiles: [], posts: [] };
 	}
+
+	// Mobile menu
+	let menuOpen = $state(false);
+
+	// Profile dropdown (mobile: toggle on click; desktop: CSS hover)
+	let profileMenuOpen = $state(false);
+
+	function handleProfileClick() {
+		profileMenuOpen = !profileMenuOpen;
+	}
 </script>
 
 <svelte:head>
@@ -216,9 +226,9 @@
 					{/if}
 				</a>
 				{/if}
-				<div class="profile-wrapper">
+				<div class="profile-wrapper" class:open={profileMenuOpen}>
 					{#if data.user}
-						<button class="profile-btn avatar-btn" aria-label="Profile" onclick={() => goto('/profile')}>
+						<button class="profile-btn avatar-btn" aria-label="Profile" onclick={handleProfileClick}>
 							{#if data.avatarUrl}
 								<img src={data.avatarUrl} alt="Profile" class="nav-avatar" />
 							{:else}
@@ -229,7 +239,7 @@
 							<p class="dropdown-name">{getDisplayName(data.user)}</p>
 							<p class="dropdown-email">{data.user.email}</p>
 							<div class="dropdown-divider"></div>
-							<a href="/profile" class="dropdown-link">View Profile</a>
+							<a href="/profile" class="dropdown-link" onclick={() => profileMenuOpen = false}>View Profile</a>
 							<form method="POST" action="/signout">
 								<button type="submit" class="dropdown-signout-btn">Sign Out</button>
 							</form>
@@ -248,8 +258,116 @@
 						</div>
 					{/if}
 				</div>
-			</div>
+
+			<!-- Hamburger (mobile only) -->
+			<button class="hamburger-btn" onclick={() => menuOpen = !menuOpen} aria-label="Menu" aria-expanded={menuOpen}>
+				{#if menuOpen}
+					<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+				{:else}
+					<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M3 12h18M3 6h18M3 18h18"/></svg>
+				{/if}
+			</button>
+		</div>
 		</header>
+
+		{#if menuOpen}
+			<nav class="mobile-nav">
+				<!-- Search inside hamburger menu -->
+				<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+				<div class="mobile-search" role="search" onfocusout={handleSearchFocusOut}>
+					<div class="search-input-row">
+						<svg class="search-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+							<circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+						</svg>
+						<input
+							class="search-input"
+							type="search"
+							placeholder="Search artists, venues, #tags…"
+							bind:value={searchQuery}
+							oninput={handleSearchInput}
+							onkeydown={(e) => { if (e.key === 'Escape') { showResults = false; searchQuery = ''; } }}
+							autocomplete="off"
+						/>
+						{#if searchQuery}
+							<button class="search-clear" onclick={() => { searchQuery = ''; showResults = false; }} aria-label="Clear search">
+								<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+							</button>
+						{/if}
+					</div>
+
+					{#if showResults}
+						<div class="mobile-search-results">
+							{#if searchLoading}
+								<p class="search-status">Searching…</p>
+							{:else if searchResults.profiles.length === 0 && searchResults.posts.length === 0}
+								<p class="search-status">No results for "{searchQuery}"</p>
+							{:else}
+								{#if searchResults.profiles.length > 0}
+									<div class="result-section">
+										<p class="result-label">People</p>
+										{#each searchResults.profiles as p (p.id)}
+											<a href="/profile/{p.id}" class="result-item" onclick={selectResult}>
+												<div class="result-avatar">
+													{#if p.avatar_url}
+														<img src={p.avatar_url} alt={p.full_name ?? ''} />
+													{:else}
+														{(p.full_name ?? '?')[0]?.toUpperCase()}
+													{/if}
+												</div>
+												<div class="result-text">
+													<div class="result-name-row">
+														<span class="result-name">{p.full_name ?? 'Unknown'}</span>
+														{#if p.profile_type}
+															<span class="result-type-badge">{p.profile_type}</span>
+														{/if}
+													</div>
+													{#if p.location}<p class="result-sub">{p.location}</p>{/if}
+												</div>
+											</a>
+										{/each}
+									</div>
+								{/if}
+								{#if searchResults.profiles.length > 0 && searchResults.posts.length > 0}
+									<div class="result-divider"></div>
+								{/if}
+								{#if searchResults.posts.length > 0}
+									<div class="result-section">
+										<p class="result-label">Posts</p>
+										{#each searchResults.posts as post (post.id)}
+											<a href="/community" class="result-item" onclick={selectResult}>
+												<div class="result-avatar">
+													{#if post.author?.avatar_url}
+														<img src={post.author.avatar_url} alt={post.author?.full_name ?? ''} />
+													{:else}
+														{(post.author?.full_name ?? '?')[0]?.toUpperCase()}
+													{/if}
+												</div>
+												<div class="result-text">
+													{#if post.tags?.length}
+														<div class="result-tags">
+															{#each post.tags as t}
+																<span class="result-tag">#{t}</span>
+															{/each}
+														</div>
+													{/if}
+													<p class="result-content">{post.content}</p>
+												</div>
+											</a>
+										{/each}
+									</div>
+								{/if}
+							{/if}
+						</div>
+					{/if}
+				</div>
+
+				<div class="mobile-nav-divider"></div>
+				<a href="/community" onclick={() => menuOpen = false}>Community</a>
+				<a href="/artists" onclick={() => menuOpen = false}>Artists</a>
+				<a href="/venues" onclick={() => menuOpen = false}>Venues</a>
+				<a href="/about" onclick={() => menuOpen = false}>About</a>
+			</nav>
+		{/if}
 	</div>
 
 	<main>
@@ -413,11 +531,10 @@
 		visibility: hidden;
 		opacity: 0;
 		pointer-events: none;
-		/* Delay hiding by 1.2s so cursor can move into dropdown */
-		transition: opacity 0.15s, visibility 0s linear 1.2s, pointer-events 0s linear 1.2s;
+		transition: opacity 0.15s, visibility 0s linear 0.15s, pointer-events 0s linear 0.15s;
 	}
 
-	.profile-wrapper:hover .profile-dropdown {
+	.profile-wrapper.open .profile-dropdown {
 		visibility: visible;
 		opacity: 1;
 		pointer-events: auto;
@@ -713,5 +830,92 @@
 		font-size: 0.825rem;
 		color: var(--color-text-muted);
 		margin: 0;
+	}
+
+	/* Hamburger (hidden on desktop) */
+	.hamburger-btn {
+		display: none;
+		align-items: center;
+		justify-content: center;
+		width: 38px;
+		height: 38px;
+		border-radius: var(--radius-sm);
+		background: none;
+		border: 1.5px solid var(--color-border);
+		color: var(--color-text-muted);
+		cursor: pointer;
+		flex-shrink: 0;
+		transition: background 0.15s, color 0.15s;
+	}
+
+	.hamburger-btn:hover {
+		background: var(--color-primary-light);
+		color: var(--color-primary);
+	}
+
+	/* Mobile nav drawer (hidden on desktop) */
+	.mobile-nav {
+		display: none;
+	}
+
+	@media (max-width: 768px) {
+		.nav-links {
+			display: none;
+		}
+
+		.hamburger-btn {
+			display: flex;
+		}
+
+		.search-wrap {
+			display: none;
+		}
+
+		.mobile-nav {
+			display: flex;
+			flex-direction: column;
+			background: var(--color-surface);
+			border: 1px solid var(--color-border);
+			border-radius: var(--radius-lg);
+			margin-top: 8px;
+			padding: 8px;
+			gap: 2px;
+			box-shadow: var(--shadow-md);
+		}
+
+		.mobile-nav a {
+			font-size: 0.925rem;
+			font-weight: 500;
+			color: var(--color-text-muted);
+			padding: 12px 16px;
+			border-radius: var(--radius-sm);
+			transition: background 0.15s, color 0.15s;
+			text-decoration: none;
+		}
+
+		.mobile-nav a:hover {
+			background: var(--color-primary-light);
+			color: var(--color-primary);
+		}
+
+		.mobile-search {
+			padding: 4px 4px 0;
+		}
+
+		.mobile-search-results {
+			margin-top: 6px;
+			border-top: 1px solid var(--color-border);
+			padding-top: 4px;
+		}
+
+		.mobile-nav-divider {
+			height: 1px;
+			background: var(--color-border);
+			margin: 6px 8px;
+		}
+
+		main {
+			padding: 16px 12px;
+		}
 	}
 </style>
