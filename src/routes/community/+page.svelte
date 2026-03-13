@@ -70,7 +70,15 @@
 
 <div class="community-page">
 	<div class="page-header">
-		<h1 class="page-title">Community</h1>
+		<div class="page-title-row">
+			<h1 class="page-title">Community</h1>
+			<a href="/create-post" class="create-post-btn">
+				<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+					<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+				</svg>
+				New Post
+			</a>
+		</div>
 		<div class="tabs" role="tablist">
 			<button
 				role="tab"
@@ -252,11 +260,38 @@
 		box-shadow: var(--shadow-sm);
 	}
 
+	.page-title-row {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		margin-bottom: 16px;
+	}
+
 	.page-title {
 		font-size: 1.4rem;
 		font-weight: 700;
 		letter-spacing: -0.4px;
-		margin-bottom: 16px;
+		margin-bottom: 0;
+	}
+
+	.create-post-btn {
+		display: flex;
+		align-items: center;
+		gap: 6px;
+		background: var(--color-primary);
+		color: white;
+		border: none;
+		border-radius: var(--radius-sm);
+		padding: 7px 16px;
+		font-size: 0.85rem;
+		font-weight: 600;
+		text-decoration: none;
+		cursor: pointer;
+		transition: background 0.15s;
+	}
+
+	.create-post-btn:hover {
+		background: var(--color-primary-dark);
 	}
 
 	/* Tabs */
