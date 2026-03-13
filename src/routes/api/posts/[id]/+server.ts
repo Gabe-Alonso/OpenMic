@@ -22,6 +22,8 @@ export const PATCH: RequestHandler = async ({ params, request, locals: { supabas
 
 	const { body, tags } = await request.json();
 
+	if (body && body.length > 5000) return json({ error: 'Post must be 5000 characters or fewer' }, { status: 400 });
+
 	const { error } = await supabase
 		.from('posts')
 		.update({

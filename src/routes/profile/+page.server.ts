@@ -59,15 +59,27 @@ export const actions: Actions = {
 
 		const profileType = (data.get('profile_type') as string) || 'artist';
 
+		const fullName = data.get('full_name') as string;
+		const bio = data.get('bio') as string;
+		const location = data.get('location') as string;
+		const contactEmail = data.get('contact_email') as string;
+		const instagram = data.get('instagram') as string;
+
+		if (fullName && fullName.length > 100) return fail(400, { updateError: 'Name must be 100 characters or fewer' });
+		if (bio && bio.length > 500) return fail(400, { updateError: 'Bio must be 500 characters or fewer' });
+		if (location && location.length > 200) return fail(400, { updateError: 'Location must be 200 characters or fewer' });
+		if (contactEmail && contactEmail.length > 254) return fail(400, { updateError: 'Email must be 254 characters or fewer' });
+		if (instagram && instagram.length > 30) return fail(400, { updateError: 'Instagram handle must be 30 characters or fewer' });
+
 		const { error } = await supabase.from('profiles').upsert({
 			id: user.id,
-			full_name: data.get('full_name') as string,
-			location: data.get('location') as string,
+			full_name: fullName,
+			location: location,
 			location_lat: latRaw ? parseFloat(latRaw) : null,
 			location_lng: lngRaw ? parseFloat(lngRaw) : null,
-			bio: data.get('bio') as string,
-			contact_email: data.get('contact_email') as string,
-			instagram: data.get('instagram') as string,
+			bio: bio,
+			contact_email: contactEmail,
+			instagram: instagram,
 			tags,
 			profile_type: profileType,
 			artist_roles: profileType === 'artist' ? artistRoles : [],
@@ -99,13 +111,18 @@ export const actions: Actions = {
 		const { user } = await safeGetSession();
 		if (!user) throw redirect(303, '/signin');
 		const data = await request.formData();
+		const title = data.get('title') as string;
+		const description = data.get('description') as string;
+		if (!title?.trim()) return fail(400, { eventError: 'Title is required' });
+		if (title.length > 200) return fail(400, { eventError: 'Title must be 200 characters or fewer' });
+		if (description && description.length > 1000) return fail(400, { eventError: 'Description must be 1000 characters or fewer' });
 		const { error } = await supabase.from('venue_events').insert({
 			profile_id: user.id,
-			title: data.get('title') as string,
+			title,
 			date: data.get('date') as string,
 			start_time: (data.get('start_time') as string) || null,
 			end_time: (data.get('end_time') as string) || null,
-			description: (data.get('description') as string) || null
+			description: description || null
 		});
 		if (error) return fail(500, { eventError: error.message });
 		return { eventCreated: true };
@@ -116,12 +133,17 @@ export const actions: Actions = {
 		if (!user) throw redirect(303, '/signin');
 		const data = await request.formData();
 		const eventId = data.get('event_id') as string;
+		const title = data.get('title') as string;
+		const description = data.get('description') as string;
+		if (!title?.trim()) return fail(400, { eventError: 'Title is required' });
+		if (title.length > 200) return fail(400, { eventError: 'Title must be 200 characters or fewer' });
+		if (description && description.length > 1000) return fail(400, { eventError: 'Description must be 1000 characters or fewer' });
 		const { error } = await supabase.from('venue_events').update({
-			title: data.get('title') as string,
+			title,
 			date: data.get('date') as string,
 			start_time: (data.get('start_time') as string) || null,
 			end_time: (data.get('end_time') as string) || null,
-			description: (data.get('description') as string) || null
+			description: description || null
 		}).eq('id', eventId).eq('profile_id', user.id);
 		if (error) return fail(500, { eventError: error.message });
 		return { eventUpdated: true };

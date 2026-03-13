@@ -8,6 +8,8 @@ export const POST: RequestHandler = async ({ request, locals: { supabase, safeGe
 	const body = await request.json();
 	const { other_user_id, participant_ids, group_name } = body;
 
+	if (group_name && group_name.length > 100) throw error(400, 'Group name must be 100 characters or fewer');
+
 	// Group chat creation
 	if (participant_ids?.length > 0) {
 		if (participant_ids.includes(user.id)) throw error(400, 'Cannot include yourself');

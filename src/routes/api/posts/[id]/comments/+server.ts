@@ -61,6 +61,7 @@ export const POST: RequestHandler = async ({ params, request, locals: { supabase
 
 	const { content, parent_id } = await request.json();
 	if (!content?.trim()) return json({ error: 'Content required' }, { status: 400 });
+	if (content.length > 2000) return json({ error: 'Comment must be 2000 characters or fewer' }, { status: 400 });
 
 	const { data, error } = await supabase
 		.from('post_comments')

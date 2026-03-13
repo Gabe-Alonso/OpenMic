@@ -7,6 +7,8 @@ export const POST: RequestHandler = async ({ request, locals: { supabase, safeGe
 
 	const { body, youtube_url, media, tags } = await request.json();
 
+	if (body && body.length > 5000) return json({ error: 'Post must be 5000 characters or fewer' }, { status: 400 });
+
 	const { data: post, error } = await supabase
 		.from('posts')
 		.insert({

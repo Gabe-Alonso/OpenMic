@@ -8,6 +8,8 @@ export const POST: RequestHandler = async ({ params, request, locals: { supabase
 	const body = await request.json();
 	const { message_type, content, image_url, youtube_url } = body;
 
+	if (content && content.length > 2000) throw error(400, 'Message must be 2000 characters or fewer');
+
 	const { data: convo } = await supabase
 		.from('conversations')
 		.select('request_status, request_from, participant_1, participant_2, is_group')
