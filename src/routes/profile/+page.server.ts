@@ -57,7 +57,8 @@ export const actions: Actions = {
 		let artistRoles: string[] = [];
 		try { artistRoles = artistRolesRaw ? JSON.parse(artistRolesRaw) : []; } catch { artistRoles = []; }
 
-		const profileType = (data.get('profile_type') as string) || 'artist';
+		const profileTypeRaw = (data.get('profile_type') as string) || 'artist';
+		const profileType = ['artist', 'venue'].includes(profileTypeRaw) ? profileTypeRaw : 'artist';
 
 		const fullName = data.get('full_name') as string;
 		const bio = data.get('bio') as string;
@@ -71,12 +72,17 @@ export const actions: Actions = {
 		if (contactEmail && contactEmail.length > 254) return fail(400, { updateError: 'Email must be 254 characters or fewer' });
 		if (instagram && instagram.length > 30) return fail(400, { updateError: 'Instagram handle must be 30 characters or fewer' });
 
+		const lat = latRaw ? parseFloat(latRaw) : null;
+		const lng = lngRaw ? parseFloat(lngRaw) : null;
+		if (lat !== null && (isNaN(lat) || lat < -90 || lat > 90)) return fail(400, { updateError: 'Invalid latitude' });
+		if (lng !== null && (isNaN(lng) || lng < -180 || lng > 180)) return fail(400, { updateError: 'Invalid longitude' });
+
 		const { error } = await supabase.from('profiles').upsert({
 			id: user.id,
 			full_name: fullName,
 			location: location,
-			location_lat: latRaw ? parseFloat(latRaw) : null,
-			location_lng: lngRaw ? parseFloat(lngRaw) : null,
+			location_lat: lat,
+			location_lng: lng,
 			bio: bio,
 			contact_email: contactEmail,
 			instagram: instagram,

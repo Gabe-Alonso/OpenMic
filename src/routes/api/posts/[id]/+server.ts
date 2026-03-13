@@ -24,11 +24,13 @@ export const PATCH: RequestHandler = async ({ params, request, locals: { supabas
 
 	if (body && body.length > 5000) return json({ error: 'Post must be 5000 characters or fewer' }, { status: 400 });
 
+	const validatedTags = Array.isArray(tags) ? tags.filter((t): t is string => typeof t === 'string' && t.length <= 50).slice(0, 20) : [];
+
 	const { error } = await supabase
 		.from('posts')
 		.update({
 			body: body ?? null,
-			tags: tags ?? [],
+			tags: validatedTags,
 			edited_at: new Date().toISOString()
 		})
 		.eq('id', params.id)

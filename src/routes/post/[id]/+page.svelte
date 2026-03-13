@@ -5,6 +5,7 @@
 	import RichTextEditor from '$lib/components/RichTextEditor.svelte';
 	import TagInput from '$lib/components/TagInput.svelte';
 	import type { PageData } from './$types';
+	import DOMPurify from 'dompurify';
 
 	let { data }: { data: PageData } = $props();
 
@@ -338,7 +339,7 @@
 				{:else}
 					{#if post.body}
 						<div class="post-content">
-							{@html post.body}
+							{@html DOMPurify.sanitize(post.body, { ALLOWED_TAGS: ['p','strong','em','h2','h3','ul','ol','li','blockquote','code','pre','br'], ALLOWED_ATTR: [] })}
 						</div>
 					{:else if !hasMedia}
 						<p class="no-content">No content.</p>
