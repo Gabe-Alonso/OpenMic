@@ -136,10 +136,11 @@
 		}
 
 		const { data: urlData } = supabase.storage.from('avatars').getPublicUrl(path);
+		const publicUrl = `${urlData.publicUrl}?t=${Date.now()}`;
 
 		const { error: updateError } = await supabase
 			.from('profiles')
-			.update({ avatar_url: urlData.publicUrl })
+			.update({ avatar_url: publicUrl })
 			.eq('id', data.user.id);
 
 		if (updateError) {
