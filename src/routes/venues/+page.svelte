@@ -1,8 +1,9 @@
 <script lang="ts">
 	import 'mapbox-gl/dist/mapbox-gl.css';
-	import { onMount } from 'svelte';
+	import { onMount, onDestroy } from 'svelte';
 	import { invalidateAll } from '$app/navigation';
 	import { PUBLIC_MAPBOX_TOKEN } from '$env/static/public';
+	import TagInput from '$lib/components/TagInput.svelte';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
@@ -20,6 +21,18 @@
 	]);
 
 	let visibleVenues = $state<any[]>([]);
+	let claimedOnly = $state(false);
+	let tagFilter = $state<string[]>([]);
+
+	const displayVenues = $derived(
+		tagFilter.length === 0
+			? visibleVenues
+			: visibleVenues.filter((v) => tagFilter.every((t) => ((v as any).tags ?? []).includes(t)))
+	);
+
+	function isClaimed(v: any): boolean {
+		return v._source === 'registered' || !!v.claimed_profile_id;
+	}
 
 	// Search state
 	let searchInput = $state('');
@@ -63,12 +76,14 @@
 	function filterByBounds() {
 		if (!map) return;
 		const bounds = map.getBounds();
-		visibleVenues = allVenues.filter((v) => bounds.contains([getLng(v), getLat(v)]));
+		visibleVenues = allVenues.filter(
+			(v) => bounds.contains([getLng(v), getLat(v)]) && (!claimedOnly || isClaimed(v))
+		);
 	}
 
 	function filterByRadius(lat: number, lng: number, radius: number) {
 		visibleVenues = allVenues.filter(
-			(v) => distanceMiles(lat, lng, getLat(v), getLng(v)) <= radius
+			(v) => distanceMiles(lat, lng, getLat(v), getLng(v)) <= radius && (!claimedOnly || isClaimed(v))
 		);
 	}
 
@@ -79,6 +94,16 @@
 		if (lat !== null && lng !== null) {
 			filterByRadius(lat, lng, radius);
 			map?.flyTo({ center: [lng, lat], zoom: radiusToZoom(radius) });
+		}
+	});
+
+	$effect(() => {
+		// Re-filter whenever claimedOnly changes
+		void claimedOnly;
+		if (searchLat !== null && searchLng !== null) {
+			filterByRadius(searchLat, searchLng, searchRadius);
+		} else {
+			filterByBounds();
 		}
 	});
 
@@ -149,62 +174,153 @@
 			zoom: 3.5
 		});
 
-		allVenues.forEach((venue) => {
-			const lat = getLat(venue);
-			const lng = getLng(venue);
-			if (!lat || !lng) return;
+		// Build GeoJSON features once — avoids 1000+ DOM markers
+		const features = allVenues
+			.map((venue) => {
+				const lat = getLat(venue);
+				const lng = getLng(venue);
+				if (!lat || !lng) return null;
+				const displayName = venue._source === 'registered' ? (venue.full_name ?? 'Venue') : venue.name;
+				const displayLoc = venue._source === 'registered'
+					? (venue.location ?? '')
+					: [venue.address, venue.city].filter(Boolean).join(', ');
+				return {
+					type: 'Feature' as const,
+					geometry: { type: 'Point' as const, coordinates: [lng, lat] },
+					properties: {
+						_id: venue._id,
+						_source: venue._source,
+						id: venue.id,
+						name: displayName,
+						location: displayLoc,
+						claimed_profile_id: venue.claimed_profile_id ?? null
+					}
+				};
+			})
+			.filter(Boolean) as any[];
 
-			const el = document.createElement('div');
-			if (venue._source === 'registered') {
-				el.className = 'venue-marker registered-marker';
-				if (venue.avatar_url) {
-					el.innerHTML = `<img src="${venue.avatar_url}" alt="${venue.full_name ?? ''}" />`;
-				} else {
-					el.textContent = (venue.full_name?.[0] ?? '?').toUpperCase();
-				}
-			} else {
-				el.className = 'venue-marker seeded-marker';
-				el.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>`;
-			}
+		map.on('load', () => {
+			if (searchLat === null) filterByBounds();
 
-			const displayName = venue._source === 'registered' ? (venue.full_name ?? 'Venue') : venue.name;
-			const displayLoc = venue._source === 'registered' ? (venue.location ?? '') : [venue.address, venue.city].filter(Boolean).join(', ');
-
-			const popup = new mapboxgl.Popup({ offset: 25, closeButton: false }).setHTML(`
-				<strong style="font-size:0.875rem;font-weight:600;display:block;">${displayName}</strong>
-				${displayLoc ? `<span style="font-size:0.78rem;color:#71717a;display:block;margin:2px 0 8px;">${displayLoc}</span>` : '<div style="margin-bottom:8px;"></div>'}
-				${venue._source === 'registered'
-					? `<a href="/profile/${venue.id}" style="font-size:0.8rem;color:#7c3aed;font-weight:500;text-decoration:none;">View Profile →</a>`
-					: venue.claimed_profile_id
-						? `<span style="font-size:0.78rem;color:#16a34a;font-weight:600;">✓ Claimed</span>`
-						: `<a href="/venues/${venue.id}/claim" style="font-size:0.8rem;color:#7c3aed;font-weight:500;text-decoration:none;">Claim this venue →</a>`
-				}
-			`);
-
-			new mapboxgl.Marker({ element: el })
-				.setLngLat([lng, lat])
-				.setPopup(popup)
-				.addTo(map);
-
-			el.addEventListener('click', () => {
-				activeVenueId = venue._id;
-				document.getElementById(`venue-${venue._id}`)?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+			map.addSource('venues', {
+				type: 'geojson',
+				data: { type: 'FeatureCollection', features },
+				cluster: true,
+				clusterMaxZoom: 14,
+				clusterRadius: 50
 			});
+
+			// Cluster bubbles
+			map.addLayer({
+				id: 'venue-clusters',
+				type: 'circle',
+				source: 'venues',
+				filter: ['has', 'point_count'],
+				paint: {
+					'circle-color': '#7c3aed',
+					'circle-radius': ['step', ['get', 'point_count'], 20, 10, 28, 50, 36],
+					'circle-opacity': 0.88,
+					'circle-stroke-width': 2.5,
+					'circle-stroke-color': 'white'
+				}
+			});
+
+			// Cluster count labels
+			map.addLayer({
+				id: 'venue-cluster-count',
+				type: 'symbol',
+				source: 'venues',
+				filter: ['has', 'point_count'],
+				layout: {
+					'text-field': '{point_count_abbreviated}',
+					'text-font': ['DIN Offc Pro Medium', 'Arial Unicode MS Bold'],
+					'text-size': 13
+				},
+				paint: { 'text-color': 'white' }
+			});
+
+			// Individual registered venues (purple dot)
+			map.addLayer({
+				id: 'venue-registered',
+				type: 'circle',
+				source: 'venues',
+				filter: ['all', ['!', ['has', 'point_count']], ['==', ['get', '_source'], 'registered']],
+				paint: {
+					'circle-color': '#7c3aed',
+					'circle-radius': 10,
+					'circle-stroke-width': 2.5,
+					'circle-stroke-color': 'white'
+				}
+			});
+
+			// Individual seeded venues (gray dot)
+			map.addLayer({
+				id: 'venue-seeded',
+				type: 'circle',
+				source: 'venues',
+				filter: ['all', ['!', ['has', 'point_count']], ['==', ['get', '_source'], 'seeded']],
+				paint: {
+					'circle-color': '#9ca3af',
+					'circle-radius': 10,
+					'circle-stroke-width': 2.5,
+					'circle-stroke-color': 'white'
+				}
+			});
+
+			// Zoom into cluster on click
+			map.on('click', 'venue-clusters', (e: any) => {
+				const clusterFeatures = map.queryRenderedFeatures(e.point, { layers: ['venue-clusters'] });
+				const clusterId = clusterFeatures[0].properties.cluster_id;
+				(map.getSource('venues') as any).getClusterExpansionZoom(clusterId, (err: any, zoom: number) => {
+					if (err) return;
+					map.easeTo({ center: (clusterFeatures[0].geometry as any).coordinates, zoom });
+				});
+			});
+
+			// Show popup and scroll card on individual venue click
+			['venue-registered', 'venue-seeded'].forEach((layer) => {
+				map.on('click', layer, (e: any) => {
+					const props = e.features[0].properties;
+					const coords = (e.features[0].geometry as any).coordinates.slice();
+					const popupHtml = `
+						<strong style="font-size:0.875rem;font-weight:600;display:block;">${props.name}</strong>
+						${props.location ? `<span style="font-size:0.78rem;color:#71717a;display:block;margin:2px 0 8px;">${props.location}</span>` : '<div style="margin-bottom:8px;"></div>'}
+						${props._source === 'registered'
+							? `<a href="/profile/${props.id}" style="font-size:0.8rem;color:#7c3aed;font-weight:500;text-decoration:none;">View Profile →</a>`
+							: props.claimed_profile_id
+								? `<span style="font-size:0.78rem;color:#16a34a;font-weight:600;">✓ Claimed</span>`
+								: `<a href="/venues/${props.id}/claim" style="font-size:0.8rem;color:#7c3aed;font-weight:500;text-decoration:none;">Claim this venue →</a>`
+						}
+					`;
+					new mapboxgl.Popup({ offset: 15, closeButton: false })
+						.setLngLat(coords)
+						.setHTML(popupHtml)
+						.addTo(map);
+					activeVenueId = props._id;
+					document.getElementById(`venue-${props._id}`)?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+				});
+			});
+
+			// Pointer cursor on hover
+			['venue-clusters', 'venue-registered', 'venue-seeded'].forEach((layer) => {
+				map.on('mouseenter', layer, () => { map.getCanvas().style.cursor = 'pointer'; });
+				map.on('mouseleave', layer, () => { map.getCanvas().style.cursor = ''; });
+			});
+
+			// Fit to all venues after map is ready
+			if (allVenues.length === 1) {
+				const v = allVenues[0];
+				map.flyTo({ center: [getLng(v), getLat(v)], zoom: 8 });
+			} else if (allVenues.length > 1) {
+				const bounds = new mapboxgl.LngLatBounds();
+				allVenues.forEach((v) => bounds.extend([getLng(v), getLat(v)]));
+				map.fitBounds(bounds, { padding: 80, maxZoom: 10 });
+			}
 		});
 
-		if (allVenues.length === 1) {
-			const v = allVenues[0];
-			map.flyTo({ center: [getLng(v), getLat(v)], zoom: 8 });
-		} else if (allVenues.length > 1) {
-			const bounds = new mapboxgl.LngLatBounds();
-			allVenues.forEach((v) => bounds.extend([getLng(v), getLat(v)]));
-			map.fitBounds(bounds, { padding: 80, maxZoom: 10 });
-		}
-
-		map.on('load', () => { if (searchLat === null) filterByBounds(); });
 		map.on('moveend', () => { if (searchLat === null) filterByBounds(); });
 
-		return () => map.remove();
+		onDestroy(() => map.remove());
 	});
 </script>
 
@@ -260,7 +376,17 @@
 				</select>
 			</div>
 
-			{#if data.isAdmin}
+			<div class="tag-filter-row">
+			<TagInput tags={tagFilter} ontags={(t) => (tagFilter = t)} placeholder="Filter by tag…" />
+		</div>
+
+		<label class="claimed-toggle">
+			<input type="checkbox" bind:checked={claimedOnly} />
+			<span class="toggle-track"><span class="toggle-thumb"></span></span>
+			Claimed accounts only
+		</label>
+
+		{#if data.isAdmin}
 				<div class="admin-row">
 					<button class="import-btn" onclick={importVenues} disabled={importing}>
 						<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -279,9 +405,10 @@
 		<div class="list-header">
 			<h1>Venues</h1>
 			<p>
-				{visibleVenues.length}
-				{visibleVenues.length === 1 ? 'venue' : 'venues'}
+				{displayVenues.length}
+				{displayVenues.length === 1 ? 'venue' : 'venues'}
 				{searchLat !== null ? `within ${searchRadius} miles` : 'in view'}
+				{tagFilter.length > 0 ? `matching ${tagFilter.length === 1 ? 'tag' : 'tags'}` : ''}
 			</p>
 		</div>
 
@@ -292,14 +419,18 @@
 					<p class="empty-title">No venues yet</p>
 					<p class="empty-sub">Venues will appear here once they set their location or are imported from the map.</p>
 				</div>
-			{:else if visibleVenues.length === 0}
+			{:else if displayVenues.length === 0}
 				<div class="empty-state">
 					<span class="empty-icon">🗺️</span>
 					<p class="empty-title">No venues found</p>
-					<p class="empty-sub">Try zooming out, expanding the radius, or searching a different location.</p>
+					<p class="empty-sub">
+						{tagFilter.length > 0
+							? 'No venues match those tags in this area. Try removing a tag or expanding your search.'
+							: 'Try zooming out, expanding the radius, or searching a different location.'}
+					</p>
 				</div>
 			{:else}
-				{#each visibleVenues as venue (venue._id)}
+				{#each displayVenues as venue (venue._id)}
 					{#if venue._source === 'registered'}
 						<a
 							href="/profile/{venue.id}"
@@ -520,6 +651,56 @@
 
 	.radius-select:not(:disabled):focus { border-color: var(--color-primary); }
 	.radius-select:disabled { opacity: 0.45; cursor: default; }
+
+	.tag-filter-row {
+		margin-top: 8px;
+	}
+
+	.claimed-toggle {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		margin-top: 8px;
+		font-size: 0.82rem;
+		font-weight: 500;
+		color: var(--color-text-muted);
+		cursor: pointer;
+		user-select: none;
+	}
+
+	.claimed-toggle input {
+		display: none;
+	}
+
+	.toggle-track {
+		width: 32px;
+		height: 18px;
+		border-radius: 999px;
+		background: var(--color-border);
+		position: relative;
+		flex-shrink: 0;
+		transition: background 0.2s;
+	}
+
+	.claimed-toggle input:checked ~ .toggle-track {
+		background: var(--color-primary);
+	}
+
+	.toggle-thumb {
+		position: absolute;
+		top: 2px;
+		left: 2px;
+		width: 14px;
+		height: 14px;
+		border-radius: 50%;
+		background: white;
+		transition: transform 0.2s;
+		box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+	}
+
+	.claimed-toggle input:checked ~ .toggle-track .toggle-thumb {
+		transform: translateX(14px);
+	}
 
 	.admin-row {
 		display: flex;
@@ -766,41 +947,6 @@
 	.empty-icon { font-size: 2rem; margin-bottom: 4px; }
 	.empty-title { font-size: 0.95rem; font-weight: 600; }
 	.empty-sub { font-size: 0.8rem; color: var(--color-text-muted); line-height: 1.5; max-width: 260px; }
-
-	/* Map markers */
-	:global(.venue-marker) {
-		width: 36px;
-		height: 36px;
-		border-radius: 50%;
-		border: 2.5px solid white;
-		box-shadow: 0 2px 8px rgba(0, 0, 0, 0.22);
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		font-weight: 700;
-		font-size: 0.85rem;
-		cursor: pointer;
-		overflow: hidden;
-		transition: transform 0.15s;
-	}
-
-	:global(.venue-marker:hover) { transform: scale(1.15); }
-
-	:global(.registered-marker) {
-		background: var(--color-primary);
-		color: white;
-	}
-
-	:global(.registered-marker img) {
-		width: 100%;
-		height: 100%;
-		object-fit: cover;
-	}
-
-	:global(.seeded-marker) {
-		background: #e5e7eb;
-		color: #6b7280;
-	}
 
 	:global(.mapboxgl-popup-content) {
 		border-radius: 10px !important;

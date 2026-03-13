@@ -1,6 +1,6 @@
 <script lang="ts">
 	import 'mapbox-gl/dist/mapbox-gl.css';
-	import { onMount } from 'svelte';
+	import { onMount, onDestroy } from 'svelte';
 	import { PUBLIC_MAPBOX_TOKEN } from '$env/static/public';
 	import TagInput from '$lib/components/TagInput.svelte';
 	import type { PageData } from './$types';
@@ -142,50 +142,116 @@
 			zoom: 3.5
 		});
 
-		data.artists.forEach((artist) => {
-			const el = document.createElement('div');
-			el.className = 'artist-marker';
-			if (artist.avatar_url) {
-				el.innerHTML = `<img src="${artist.avatar_url}" alt="${artist.full_name ?? ''}" />`;
-			} else {
-				el.textContent = (artist.full_name?.[0] ?? '?').toUpperCase();
+		const features = data.artists.map((artist) => ({
+			type: 'Feature' as const,
+			geometry: { type: 'Point' as const, coordinates: [artist.location_lng!, artist.location_lat!] },
+			properties: {
+				id: artist.id,
+				name: artist.full_name ?? 'Artist',
+				location: artist.location ?? ''
 			}
+		}));
 
-			const popup = new mapboxgl.Popup({ offset: 25, closeButton: false }).setHTML(`
-				<strong style="font-size:0.875rem;font-weight:600;display:block;">${artist.full_name ?? 'Artist'}</strong>
-				${artist.location ? `<span style="font-size:0.78rem;color:#71717a;display:block;margin:2px 0 8px;">${artist.location}</span>` : '<div style="margin-bottom:8px;"></div>'}
-				<a href="/profile/${artist.id}" style="font-size:0.8rem;color:#7c3aed;font-weight:500;text-decoration:none;">View Profile →</a>
-			`);
+		map.on('load', () => {
+			if (searchLat === null) filterByBounds();
 
-			new mapboxgl.Marker({ element: el })
-				.setLngLat([artist.location_lng!, artist.location_lat!])
-				.setPopup(popup)
-				.addTo(map);
-
-			el.addEventListener('click', () => {
-				activeArtistId = artist.id;
-				document
-					.getElementById(`artist-${artist.id}`)
-					?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+			map.addSource('artists', {
+				type: 'geojson',
+				data: { type: 'FeatureCollection', features },
+				cluster: true,
+				clusterMaxZoom: 14,
+				clusterRadius: 50
 			});
+
+			// Cluster bubbles
+			map.addLayer({
+				id: 'artist-clusters',
+				type: 'circle',
+				source: 'artists',
+				filter: ['has', 'point_count'],
+				paint: {
+					'circle-color': '#7c3aed',
+					'circle-radius': ['step', ['get', 'point_count'], 20, 10, 28, 50, 36],
+					'circle-opacity': 0.88,
+					'circle-stroke-width': 2.5,
+					'circle-stroke-color': 'white'
+				}
+			});
+
+			// Cluster count labels
+			map.addLayer({
+				id: 'artist-cluster-count',
+				type: 'symbol',
+				source: 'artists',
+				filter: ['has', 'point_count'],
+				layout: {
+					'text-field': '{point_count_abbreviated}',
+					'text-font': ['DIN Offc Pro Medium', 'Arial Unicode MS Bold'],
+					'text-size': 13
+				},
+				paint: { 'text-color': 'white' }
+			});
+
+			// Individual artist dots
+			map.addLayer({
+				id: 'artist-points',
+				type: 'circle',
+				source: 'artists',
+				filter: ['!', ['has', 'point_count']],
+				paint: {
+					'circle-color': '#7c3aed',
+					'circle-radius': 10,
+					'circle-stroke-width': 2.5,
+					'circle-stroke-color': 'white'
+				}
+			});
+
+			// Zoom into cluster on click
+			map.on('click', 'artist-clusters', (e: any) => {
+				const clusterFeatures = map.queryRenderedFeatures(e.point, { layers: ['artist-clusters'] });
+				const clusterId = clusterFeatures[0].properties.cluster_id;
+				(map.getSource('artists') as any).getClusterExpansionZoom(clusterId, (err: any, zoom: number) => {
+					if (err) return;
+					map.easeTo({ center: (clusterFeatures[0].geometry as any).coordinates, zoom });
+				});
+			});
+
+			// Show popup and scroll card on individual artist click
+			map.on('click', 'artist-points', (e: any) => {
+				const props = e.features[0].properties;
+				const coords = (e.features[0].geometry as any).coordinates.slice();
+				const popupHtml = `
+					<strong style="font-size:0.875rem;font-weight:600;display:block;">${props.name}</strong>
+					${props.location ? `<span style="font-size:0.78rem;color:#71717a;display:block;margin:2px 0 8px;">${props.location}</span>` : '<div style="margin-bottom:8px;"></div>'}
+					<a href="/profile/${props.id}" style="font-size:0.8rem;color:#7c3aed;font-weight:500;text-decoration:none;">View Profile →</a>
+				`;
+				new mapboxgl.Popup({ offset: 15, closeButton: false })
+					.setLngLat(coords)
+					.setHTML(popupHtml)
+					.addTo(map);
+				activeArtistId = props.id;
+				document.getElementById(`artist-${props.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+			});
+
+			// Pointer cursor on hover
+			['artist-clusters', 'artist-points'].forEach((layer) => {
+				map.on('mouseenter', layer, () => { map.getCanvas().style.cursor = 'pointer'; });
+				map.on('mouseleave', layer, () => { map.getCanvas().style.cursor = ''; });
+			});
+
+			// Fit to all artists after map is ready
+			if (data.artists.length === 1) {
+				map.flyTo({ center: [data.artists[0].location_lng!, data.artists[0].location_lat!], zoom: 8 });
+			} else if (data.artists.length > 1) {
+				const bounds = new mapboxgl.LngLatBounds();
+				data.artists.forEach((a) => bounds.extend([a.location_lng!, a.location_lat!]));
+				map.fitBounds(bounds, { padding: 80, maxZoom: 10 });
+			}
 		});
 
-		if (data.artists.length === 1) {
-			map.flyTo({
-				center: [data.artists[0].location_lng!, data.artists[0].location_lat!],
-				zoom: 8
-			});
-		} else if (data.artists.length > 1) {
-			const bounds = new mapboxgl.LngLatBounds();
-			data.artists.forEach((a) => bounds.extend([a.location_lng!, a.location_lat!]));
-			map.fitBounds(bounds, { padding: 80, maxZoom: 10 });
-		}
-
-		// Only update by bounds when no search location is active
-		map.on('load', () => { if (searchLat === null) filterByBounds(); });
 		map.on('moveend', () => { if (searchLat === null) filterByBounds(); });
 
-		return () => map.remove();
+		onDestroy(() => map.remove());
 	});
 </script>
 
