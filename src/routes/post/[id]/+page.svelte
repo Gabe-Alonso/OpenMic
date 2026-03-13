@@ -1560,4 +1560,44 @@
 		cursor: default;
 	}
 
+	@media (max-width: 768px) {
+		.post-header-top {
+			flex-wrap: wrap;
+			gap: 8px;
+		}
+
+		.post-body {
+			flex-direction: column;
+			min-height: unset;
+			overflow: visible;
+		}
+
+		.media-panel {
+			flex: none;
+			width: 100%;
+			aspect-ratio: 16 / 9;
+		}
+
+		.text-panel {
+			flex: none;
+			width: 100%;
+			border-left: none;
+			border-top: 1px solid var(--color-border);
+			overflow: visible;
+		}
+
+		.text-content {
+			overflow-y: visible;
+			flex: none;
+		}
+
+		.post-body.no-media .text-content {
+			padding: 20px;
+		}
+
+		.post-actions {
+			flex-wrap: wrap;
+		}
+	}
+
 </style>
