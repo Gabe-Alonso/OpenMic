@@ -1,0 +1,28 @@
+Creating 1500 auth users...
+  batch 10/100 done (150/1500 total)
+  batch 20/100 done (300/1500 total)
+  batch 30/100 done (450/1500 total)
+  batch 40/100 done (600/1500 total)
+  batch 50/100 done (750/1500 total)
+  batch 60/100 done (900/1500 total)
+  batch 70/100 done (1050/1500 total)
+  batch 80/100 done (1200/1500 total)
+  batch 90/100 done (1350/1500 total)
+  batch 100/100 done (1500/1500 total)
+Manifest written to C:\Users\gabea\WebstormProjects\OpenMic\scripts\.seed-manifest.json
+Upserting 1500 profiles...
+Creating 1500 posts...
+Attaching one stock photo to each post...
+Creating cross-likes (this is the slow part — thousands of rows)...
+  inserting 354236 likes...
+Creating comments...
+  inserting 8274 comments...
+
+Done.
+  Musicians: 1000/1000
+  Venues:    500/500
+  Posts:     1500
+  Likes:     354236
+  Comments:  8274
+
+To remove everything later: node --env-file=.env scripts/remove-network.mjs
