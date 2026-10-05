@@ -172,7 +172,7 @@
 				paint: {
 					'circle-color': '#7c3aed',
 					'circle-radius': ['step', ['get', 'point_count'], 20, 10, 28, 50, 36],
-					'circle-opacity': 0.88,
+					'circle-opacity': 0.9,
 					'circle-stroke-width': 2.5,
 					'circle-stroke-color': 'white'
 				}
@@ -192,16 +192,16 @@
 				paint: { 'text-color': 'white' }
 			});
 
-			// Individual artist dots
+			// Individual artist dots — selected point gets a deeper fill and a larger halo
 			map.addLayer({
 				id: 'artist-points',
 				type: 'circle',
 				source: 'artists',
 				filter: ['!', ['has', 'point_count']],
 				paint: {
-					'circle-color': '#7c3aed',
-					'circle-radius': 10,
-					'circle-stroke-width': 2.5,
+					'circle-color': ['case', ['==', ['get', 'id'], activeArtistId ?? ''], '#4c1d95', '#7c3aed'],
+					'circle-radius': ['case', ['==', ['get', 'id'], activeArtistId ?? ''], 14, 10],
+					'circle-stroke-width': ['case', ['==', ['get', 'id'], activeArtistId ?? ''], 4, 2.5],
 					'circle-stroke-color': 'white'
 				}
 			});
@@ -221,15 +221,18 @@
 				const props = e.features[0].properties;
 				const coords = (e.features[0].geometry as any).coordinates.slice();
 				const popupHtml = `
-					<strong style="font-size:0.875rem;font-weight:600;display:block;">${props.name}</strong>
-					${props.location ? `<span style="font-size:0.78rem;color:#71717a;display:block;margin:2px 0 8px;">${props.location}</span>` : '<div style="margin-bottom:8px;"></div>'}
-					<a href="/profile/${props.id}" style="font-size:0.8rem;color:#7c3aed;font-weight:500;text-decoration:none;">View Profile →</a>
+					<strong style="font-family:'DM Sans',system-ui,sans-serif;font-size:0.9rem;font-weight:700;display:block;color:#17082f;">${props.name}</strong>
+					${props.location ? `<span style="font-family:'DM Sans',system-ui,sans-serif;font-size:0.78rem;color:#5b4f78;display:block;margin:2px 0 8px;">${props.location}</span>` : '<div style="margin-bottom:8px;"></div>'}
+					<a href="/profile/${props.id}" style="font-family:'DM Sans',system-ui,sans-serif;font-size:0.8rem;color:#4c1d95;font-weight:700;text-decoration:none;">View Profile →</a>
 				`;
 				new mapboxgl.Popup({ offset: 15, closeButton: false })
 					.setLngLat(coords)
 					.setHTML(popupHtml)
 					.addTo(map);
 				activeArtistId = props.id;
+				map.setPaintProperty('artist-points', 'circle-color', ['case', ['==', ['get', 'id'], props.id], '#4c1d95', '#7c3aed']);
+				map.setPaintProperty('artist-points', 'circle-radius', ['case', ['==', ['get', 'id'], props.id], 14, 10]);
+				map.setPaintProperty('artist-points', 'circle-stroke-width', ['case', ['==', ['get', 'id'], props.id], 4, 2.5]);
 				document.getElementById(`artist-${props.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 			});
 
@@ -256,7 +259,17 @@
 </script>
 
 <div class="artists-page">
-	<div class="map-panel" bind:this={mapContainer}></div>
+	<div class="map-wrap">
+		<div class="map-panel" bind:this={mapContainer}></div>
+		<div class="zoom-controls">
+			<button class="zoom-btn" type="button" aria-label="Zoom in" onclick={() => map?.zoomIn()}>
+				<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+			</button>
+			<button class="zoom-btn" type="button" aria-label="Zoom out" onclick={() => map?.zoomOut()}>
+				<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M5 12h14"/></svg>
+			</button>
+		</div>
+	</div>
 
 	<div class="list-panel">
 		<div class="search-section">
@@ -404,9 +417,49 @@
 		overflow: hidden;
 	}
 
-	.map-panel {
+	.map-wrap {
+		position: relative;
 		flex: 1;
 		min-width: 0;
+	}
+
+	.map-panel {
+		width: 100%;
+		height: 100%;
+	}
+
+	.zoom-controls {
+		position: absolute;
+		top: 18px;
+		right: 18px;
+		z-index: 5;
+		display: flex;
+		flex-direction: column;
+		border-radius: 16px;
+		overflow: hidden;
+		background: var(--color-surface);
+		box-shadow: 0 8px 20px rgba(23, 8, 47, 0.18);
+	}
+
+	.zoom-btn {
+		width: 44px;
+		height: 44px;
+		border: none;
+		background: none;
+		color: var(--color-ink);
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		cursor: pointer;
+		transition: background 0.12s;
+	}
+
+	.zoom-btn:first-child {
+		border-bottom: 1px solid var(--color-border);
+	}
+
+	.zoom-btn:hover {
+		background: var(--color-primary-light);
 	}
 
 	.list-panel {
@@ -450,21 +503,22 @@
 
 	.search-input {
 		width: 100%;
-		padding: 9px 32px 9px 34px;
+		padding: 11px 32px 11px 34px;
 		border: 1.5px solid var(--color-border);
-		border-radius: var(--radius-sm);
+		border-radius: var(--radius-pill);
 		font-size: 0.875rem;
-		background: var(--color-bg);
+		background: var(--color-surface-tint);
 		color: var(--color-text);
 		outline: none;
 		font-family: inherit;
-		transition: border-color 0.15s;
+		transition: border-color 0.15s, box-shadow 0.15s;
 		box-sizing: border-box;
 	}
 
 	.search-input:focus {
 		border-color: var(--color-primary);
 		background: var(--color-surface);
+		box-shadow: 0 0 0 3px rgba(167, 139, 250, 0.35);
 	}
 
 	.search-input::placeholder {
@@ -495,17 +549,17 @@
 
 	.search-dropdown {
 		position: absolute;
-		top: calc(100% + 4px);
+		top: calc(100% + 6px);
 		left: 0;
 		right: 0;
 		background: var(--color-surface);
-		border: 1.5px solid var(--color-border);
-		border-radius: var(--radius-sm);
-		box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+		border: 1px solid var(--color-border);
+		border-radius: var(--radius-input);
+		box-shadow: var(--shadow-card-hover);
 		z-index: 200;
 		list-style: none;
 		margin: 0;
-		padding: 4px;
+		padding: 6px;
 	}
 
 	.search-dropdown li {
@@ -514,20 +568,22 @@
 
 	.search-dropdown button {
 		width: 100%;
+		min-height: 44px;
 		text-align: left;
 		background: none;
 		border: none;
-		padding: 8px 12px;
-		border-radius: calc(var(--radius-sm) - 2px);
+		padding: 8px 14px;
+		border-radius: var(--radius-md);
 		cursor: pointer;
 		display: flex;
 		flex-direction: column;
+		justify-content: center;
 		gap: 1px;
 		transition: background 0.1s;
 	}
 
 	.search-dropdown button:hover {
-		background: var(--color-bg);
+		background: var(--color-primary-light);
 	}
 
 	.place-name {
@@ -542,11 +598,11 @@
 	}
 
 	.radius-select {
-		padding: 9px 10px;
+		padding: 9px 12px;
 		border: 1.5px solid var(--color-border);
-		border-radius: var(--radius-sm);
+		border-radius: var(--radius-pill);
 		font-size: 0.875rem;
-		background: var(--color-bg);
+		background: var(--color-surface-tint);
 		color: var(--color-text);
 		outline: none;
 		font-family: inherit;
@@ -576,47 +632,46 @@
 	}
 
 	.role-filter-chip {
-		padding: 4px 11px;
-		border-radius: 999px;
+		padding: 5px 13px;
+		border-radius: var(--radius-pill);
 		border: 1.5px solid var(--color-border);
-		background: var(--color-bg);
+		background: var(--color-surface-tint);
 		color: var(--color-text-muted);
 		font-size: 0.78rem;
-		font-weight: 500;
+		font-weight: 600;
 		cursor: pointer;
 		transition: border-color 0.12s, background 0.12s, color 0.12s;
 		font-family: inherit;
 	}
 
 	.role-filter-chip:hover {
-		border-color: var(--color-primary);
-		color: var(--color-primary);
+		border-color: var(--color-lilac);
+		color: var(--color-primary-deep);
+		background: var(--color-primary-light);
 	}
 
 	.role-filter-chip-active {
-		background: var(--color-primary);
-		border-color: var(--color-primary);
-		color: white;
+		background: var(--color-ink);
+		border-color: var(--color-ink);
+		color: var(--color-cream);
 	}
 
 	.role-filter-chip-active:hover {
-		background: var(--color-primary-dark);
-		border-color: var(--color-primary-dark);
-		color: white;
+		background: var(--color-ink);
+		border-color: var(--color-ink);
+		color: var(--color-cream);
 	}
 
 	/* List header */
 	.list-header {
-		padding: 16px 20px 12px;
+		padding: 18px 20px 14px;
 		background: var(--color-surface);
 		border-bottom: 1px solid var(--color-border);
 		flex-shrink: 0;
 	}
 
 	.list-header h1 {
-		font-size: 1.2rem;
-		font-weight: 700;
-		letter-spacing: -0.3px;
+		font-size: 1.25rem;
 	}
 
 	.list-header p {
@@ -637,28 +692,29 @@
 	/* Artist card */
 	.artist-card {
 		display: flex;
-		gap: 12px;
-		padding: 14px;
-		border-radius: var(--radius-md);
+		gap: 14px;
+		padding: 16px;
+		border-radius: 22px;
 		border: 1.5px solid var(--color-border);
 		background: var(--color-surface);
 		text-decoration: none;
 		color: var(--color-text);
-		transition: border-color 0.15s, box-shadow 0.15s;
+		transition: border-color 0.15s, box-shadow 0.15s, transform 0.15s;
 	}
 
 	.artist-card:hover,
 	.artist-card.active {
-		border-color: var(--color-primary);
-		box-shadow: 0 0 0 3px var(--color-primary-light);
+		border-color: var(--color-lilac);
+		box-shadow: var(--shadow-card-hover);
+		transform: translateY(-2px);
 	}
 
 	.artist-avatar {
-		width: 48px;
-		height: 48px;
+		width: 56px;
+		height: 56px;
 		border-radius: 50%;
 		flex-shrink: 0;
-		background: var(--color-primary);
+		background: var(--color-primary-deep);
 		display: flex;
 		align-items: center;
 		justify-content: center;
@@ -673,8 +729,9 @@
 
 	.artist-avatar span {
 		color: white;
-		font-weight: 700;
-		font-size: 1.1rem;
+		font-family: var(--font-display);
+		font-weight: 800;
+		font-size: 1.375rem;
 	}
 
 	.artist-info {
@@ -720,11 +777,10 @@
 	.artist-role {
 		font-size: 0.72rem;
 		font-weight: 600;
-		color: var(--color-text-muted);
-		background: var(--color-bg);
-		border: 1px solid var(--color-border);
+		color: var(--color-cream);
+		background: var(--color-ink);
 		border-radius: 999px;
-		padding: 2px 8px;
+		padding: 3px 10px;
 	}
 
 	.artist-tags {
@@ -737,7 +793,7 @@
 	.artist-tag {
 		font-size: 0.72rem;
 		font-weight: 600;
-		color: var(--color-primary);
+		color: var(--color-primary-deep);
 		background: var(--color-primary-light);
 		border-radius: 999px;
 		padding: 2px 8px;
@@ -759,8 +815,9 @@
 	}
 
 	.empty-title {
-		font-size: 0.95rem;
-		font-weight: 600;
+		font-family: var(--font-display);
+		font-size: 1rem;
+		font-weight: 800;
 	}
 
 	.empty-sub {
@@ -775,9 +832,9 @@
 		width: 36px;
 		height: 36px;
 		border-radius: 50%;
-		background: var(--color-primary);
+		background: var(--color-primary-bright);
 		border: 2.5px solid white;
-		box-shadow: 0 2px 8px rgba(0, 0, 0, 0.22);
+		box-shadow: 0 2px 8px rgba(76, 29, 149, 0.3);
 		display: flex;
 		align-items: center;
 		justify-content: center;
@@ -800,9 +857,10 @@
 	}
 
 	:global(.mapboxgl-popup-content) {
-		border-radius: 10px !important;
+		border-radius: 18px !important;
 		padding: 14px 16px !important;
-		box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12) !important;
+		box-shadow: var(--shadow-card-hover) !important;
+		border: 1px solid var(--color-border-soft);
 		min-width: 150px;
 	}
 
@@ -818,7 +876,7 @@
 			margin: -16px -12px;
 		}
 
-		.map-panel {
+		.map-wrap {
 			height: 50vh;
 			flex: none;
 		}

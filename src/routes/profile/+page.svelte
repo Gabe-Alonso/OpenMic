@@ -100,6 +100,9 @@
 	let avatarPreview = $state<string | null>(null);
 	let avatarUploading = $state(false);
 	let avatarError = $state<string | null>(null);
+	let bannerPreview = $state<string | null>(null);
+	let bannerUploading = $state(false);
+	let bannerError = $state<string | null>(null);
 
 	function getInitial(): string {
 		const name = data.profile?.full_name || data.user?.email;
@@ -150,18 +153,102 @@
 		await invalidateAll();
 		avatarUploading = false;
 	}
+
+	async function handleBannerChange(e: Event) {
+		const input = e.currentTarget as HTMLInputElement;
+		const file = input.files?.[0];
+		if (!file) return;
+
+		if (file.size > MAX_FILE_SIZE) {
+			bannerError = `File is too large (${(file.size / 1024 / 1024).toFixed(1)} MB). Maximum is 50 MB.`;
+			input.value = '';
+			return;
+		}
+
+		bannerError = null;
+		bannerUploading = true;
+		bannerPreview = URL.createObjectURL(file);
+
+		const ext = file.name.split('.').pop()?.toLowerCase() ?? 'jpg';
+		const path = `${data.user.id}/banner.${ext}`;
+
+		const { error: uploadError } = await supabase.storage
+			.from('avatars')
+			.upload(path, file, { upsert: true });
+
+		if (uploadError) {
+			bannerError = uploadError.message;
+			bannerPreview = null;
+			bannerUploading = false;
+			return;
+		}
+
+		const { data: urlData } = supabase.storage.from('avatars').getPublicUrl(path);
+		const publicUrl = `${urlData.publicUrl}?t=${Date.now()}`;
+
+		const { error: updateError } = await supabase
+			.from('profiles')
+			.update({ banner_url: publicUrl })
+			.eq('id', data.user.id);
+
+		if (updateError) {
+			bannerError = updateError.message;
+		}
+
+		await invalidateAll();
+		bannerUploading = false;
+	}
 </script>
 
 <div class="profile-page">
 
+	<div class="page-title-row">
+		<div>
+			<p class="page-eyebrow">Settings</p>
+			<h1 class="page-title">Your Profile</h1>
+		</div>
+		<a href="/profile/{data.user.id}" class="btn btn-outline view-profile-btn">
+			View Public Profile
+			<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17 17 7M8 7h9v9"/></svg>
+		</a>
+	</div>
+
 	<!-- Profile Info -->
 	<div class="card">
-		<div class="card-header">
-			<h2 class="card-title">Your Profile</h2>
-			<a href="/profile/{data.user.id}" class="view-profile-btn">View Public Profile</a>
-		</div>
-
 		<form method="POST" action="?/updateProfile" use:enhance={() => ({ update }) => update({ reset: false })}>
+			<div class="banner-section">
+				<div class="banner-wrap" class:uploading={bannerUploading}>
+					{#if bannerUploading}
+						<div class="banner-placeholder">
+							<svg class="spinner" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+								<path d="M12 2a10 10 0 0 1 10 10" />
+							</svg>
+						</div>
+					{:else if bannerPreview || data.profile?.banner_url}
+						<img src={bannerPreview ?? data.profile?.banner_url ?? ''} alt="Banner" class="banner-img" />
+					{:else}
+						<div class="banner-placeholder">
+							<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+								<rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="9" cy="9" r="2"/><path d="m21 15-5-5L5 21"/>
+							</svg>
+							<span>Add a banner image</span>
+						</div>
+					{/if}
+					{#if !bannerUploading}
+						<label class="banner-cam" title="Change banner">
+							<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+								<path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+								<circle cx="12" cy="13" r="4" />
+							</svg>
+							<input type="file" accept="image/*" class="sr-only" onchange={handleBannerChange} />
+						</label>
+					{/if}
+				</div>
+				{#if bannerError}
+					<p class="avatar-error">{bannerError}</p>
+				{/if}
+			</div>
+
 			<div class="avatar-section">
 				<div class="avatar-wrap" class:uploading={avatarUploading}>
 					{#if avatarUploading}
@@ -176,7 +263,7 @@
 						<div class="avatar-circle">{getInitial()}</div>
 					{/if}
 					{#if !avatarUploading}
-						<label class="avatar-overlay" title="Change photo">
+						<label class="avatar-cam" title="Change photo">
 							<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
 								<path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
 								<circle cx="12" cy="13" r="4" />
@@ -185,35 +272,46 @@
 						</label>
 					{/if}
 				</div>
-				{#if avatarError}
-					<p class="avatar-error">{avatarError}</p>
-				{:else}
-					<p class="avatar-hint">{avatarUploading ? 'Uploading…' : 'Click to change photo'}</p>
-				{/if}
+				<div class="avatar-section-text">
+					<h2 class="avatar-heading">Profile</h2>
+					{#if avatarError}
+						<p class="avatar-error">{avatarError}</p>
+					{:else}
+						<p class="avatar-hint">{avatarUploading ? 'Uploading…' : 'Click the camera to change your photo'}</p>
+					{/if}
+				</div>
 			</div>
 
 			{#if form?.updateError}
-				<p class="error-msg">{form.updateError}</p>
+				<p class="error-banner" role="alert">{form.updateError}</p>
 			{/if}
 			{#if form?.updated}
 				<p class="success-msg">Profile saved!</p>
 			{/if}
 
 			<div class="form-grid">
-				<div class="field">
+				<div class="form-field">
 					<label for="full_name">Display Name</label>
-					<input id="full_name" name="full_name" type="text" placeholder="Your name" value={data.profile?.full_name ?? ''} />
+					<div class="field">
+						<input id="full_name" name="full_name" type="text" placeholder="Your name" value={data.profile?.full_name ?? ''} />
+					</div>
 				</div>
 
-				<div class="field">
-					<label for="profile_type">Profile Type</label>
-					<select id="profile_type" name="profile_type" bind:value={profileType}>
-						<option value="artist">Artist</option>
-						<option value="venue">Venue</option>
-					</select>
+				<div class="form-field">
+					<span id="type-label">Profile Type</span>
+					<div class="segmented" role="radiogroup" aria-labelledby="type-label">
+						<label class="segment" class:selected={profileType === 'artist'}>
+							<input type="radio" name="profile_type" value="artist" bind:group={profileType} />
+							Artist
+						</label>
+						<label class="segment" class:selected={profileType === 'venue'}>
+							<input type="radio" name="profile_type" value="venue" bind:group={profileType} />
+							Venue
+						</label>
+					</div>
 				</div>
 
-				<div class="field">
+				<div class="form-field">
 					<label for="location">General Area</label>
 					<LocationSearch
 						value={data.profile?.location ?? ''}
@@ -222,21 +320,23 @@
 					/>
 				</div>
 
-				<div class="field full">
+				<div class="form-field full">
 					<label for="bio">Bio</label>
-					<textarea id="bio" name="bio" rows={4} placeholder="Tell the community about yourself, your sound, what you're looking for…">{data.profile?.bio ?? ''}</textarea>
+					<div class="field">
+						<textarea id="bio" name="bio" rows={4} placeholder="Tell the community about yourself, your sound, what you're looking for…">{data.profile?.bio ?? ''}</textarea>
+					</div>
 				</div>
 
-				<div class="field full">
-					<label>Tags</label>
+				<div class="form-field full">
+					<span id="tags-label">Tags</span>
 					<TagInput tags={profileTags} ontags={(t) => (profileTags = t)} placeholder="Add genre, instrument, style… (Enter or comma)" />
 					<input type="hidden" name="tags" value={JSON.stringify(profileTags)} />
 				</div>
 
 				{#if profileType === 'artist'}
-					<div class="field full">
-						<label>Artist Roles</label>
-						<div class="role-chips">
+					<div class="form-field full">
+						<span id="roles-label">Artist Roles</span>
+						<div class="role-chips" role="group" aria-labelledby="roles-label">
 							{#each ARTIST_ROLES as role}
 								<button
 									type="button"
@@ -257,22 +357,24 @@
 			</div>
 
 			<div class="form-grid">
-				<div class="field">
+				<div class="form-field">
 					<label for="contact_email">Public Email</label>
-					<input id="contact_email" name="contact_email" type="email" placeholder="booking@example.com" value={data.profile?.contact_email ?? ''} />
+					<div class="field">
+						<input id="contact_email" name="contact_email" type="email" placeholder="booking@example.com" value={data.profile?.contact_email ?? ''} />
+					</div>
 				</div>
 
-				<div class="field">
+				<div class="form-field">
 					<label for="instagram">Instagram</label>
-					<div class="input-prefix-wrap">
+					<div class="field">
 						<span class="input-prefix">@</span>
-						<input id="instagram" name="instagram" type="text" placeholder="yourhandle" value={data.profile?.instagram ?? ''} class="with-prefix" />
+						<input id="instagram" name="instagram" type="text" placeholder="yourhandle" value={data.profile?.instagram ?? ''} />
 					</div>
 				</div>
 			</div>
 
 			<div class="form-footer">
-				<button type="submit" class="save-btn">Save Changes</button>
+				<button type="submit" class="btn btn-primary save-btn">Save Changes</button>
 			</div>
 		</form>
 	</div>
@@ -308,11 +410,11 @@
 		</div>
 
 		<div class="cal-header-nav">
-			<button class="cal-nav-btn" onclick={prevMonth}>
+			<button class="cal-nav-btn" onclick={prevMonth} aria-label="Previous month">
 				<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="m15 18-6-6 6-6"/></svg>
 			</button>
 			<span class="cal-month-label">{monthLabel}</span>
-			<button class="cal-nav-btn" onclick={nextMonth}>
+			<button class="cal-nav-btn" onclick={nextMonth} aria-label="Next month">
 				<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="m9 18 6-6-6-6"/></svg>
 			</button>
 		</div>
@@ -407,11 +509,11 @@
 			<p class="danger-desc">Permanently delete your account and all data. This cannot be undone.</p>
 
 			{#if form?.deleteError}
-				<p class="error-msg">{form.deleteError}</p>
+				<p class="error-banner" role="alert">{form.deleteError}</p>
 			{/if}
 
 			{#if !confirmDelete}
-				<button class="delete-btn" onclick={() => (confirmDelete = true)}>
+				<button class="btn btn-danger delete-btn" onclick={() => (confirmDelete = true)}>
 					Delete Account
 				</button>
 			{:else}
@@ -419,7 +521,7 @@
 					<p class="confirm-msg">Are you absolutely sure? All your posts, profile data, and account access will be gone.</p>
 					<div class="confirm-actions">
 						<form method="POST" action="?/deleteAccount" use:enhance>
-							<button type="submit" class="delete-btn">Yes, permanently delete</button>
+							<button type="submit" class="btn btn-danger delete-btn">Yes, permanently delete</button>
 						</form>
 						<button class="cancel-btn" onclick={() => (confirmDelete = false)}>Cancel</button>
 					</div>
@@ -443,7 +545,7 @@
 		<div class="event-modal">
 			<h3 class="event-modal-title">{eventModal.editing ? 'Edit Event' : 'Add Event'}</h3>
 			{#if (form as any)?.eventError}
-				<p class="error-msg">{(form as any).eventError}</p>
+				<p class="error-banner" role="alert">{(form as any).eventError}</p>
 			{/if}
 			<form
 				method="POST"
@@ -454,33 +556,43 @@
 					<input type="hidden" name="event_id" value={eventModal.editing.id} />
 				{/if}
 				<div class="event-form-grid">
-					<div class="field full">
+					<div class="form-field full">
 						<label for="ev-title">Title</label>
-						<input id="ev-title" name="title" required placeholder="Event name" value={eventModal.editing?.title ?? ''} />
+						<div class="field">
+							<input id="ev-title" name="title" required placeholder="Event name" value={eventModal.editing?.title ?? ''} />
+						</div>
 					</div>
-					<div class="field">
+					<div class="form-field">
 						<label for="ev-date">Date</label>
-						<input id="ev-date" name="date" type="date" required value={eventModal.editing?.date ?? eventModal.prefillDate ?? ''} />
+						<div class="field">
+							<input id="ev-date" name="date" type="date" required value={eventModal.editing?.date ?? eventModal.prefillDate ?? ''} />
+						</div>
 					</div>
-					<div class="field">
+					<div class="form-field">
 						<!-- spacer -->
 					</div>
-					<div class="field">
+					<div class="form-field">
 						<label for="ev-start">Start Time</label>
-						<input id="ev-start" name="start_time" type="time" value={eventModal.editing?.start_time ?? ''} />
+						<div class="field">
+							<input id="ev-start" name="start_time" type="time" value={eventModal.editing?.start_time ?? ''} />
+						</div>
 					</div>
-					<div class="field">
+					<div class="form-field">
 						<label for="ev-end">End Time</label>
-						<input id="ev-end" name="end_time" type="time" value={eventModal.editing?.end_time ?? ''} />
+						<div class="field">
+							<input id="ev-end" name="end_time" type="time" value={eventModal.editing?.end_time ?? ''} />
+						</div>
 					</div>
-					<div class="field full">
+					<div class="form-field full">
 						<label for="ev-desc">Description</label>
-						<textarea id="ev-desc" name="description" rows={3} placeholder="Optional details…">{eventModal.editing?.description ?? ''}</textarea>
+						<div class="field">
+							<textarea id="ev-desc" name="description" rows={3} placeholder="Optional details…">{eventModal.editing?.description ?? ''}</textarea>
+						</div>
 					</div>
 				</div>
 				<div class="event-modal-actions">
 					<button type="button" class="cancel-btn" onclick={() => eventModal = null}>Cancel</button>
-					<button type="submit" class="save-btn">{eventModal.editing ? 'Save Changes' : 'Add Event'}</button>
+					<button type="submit" class="btn btn-primary save-btn">{eventModal.editing ? 'Save Changes' : 'Add Event'}</button>
 				</div>
 			</form>
 		</div>
@@ -489,101 +601,158 @@
 
 <style>
 	.profile-page {
-		max-width: 720px;
+		max-width: 860px;
 		margin: 0 auto;
 		display: flex;
 		flex-direction: column;
 		gap: 20px;
 	}
 
-	.card {
-		background: var(--color-surface);
-		border: 1px solid var(--color-border);
-		border-radius: var(--radius-lg);
-		padding: 32px;
-		box-shadow: var(--shadow-sm);
-	}
-
-	.card-header {
+	.page-title-row {
 		display: flex;
-		align-items: center;
+		flex-wrap: wrap;
+		align-items: flex-end;
 		justify-content: space-between;
-		margin-bottom: 24px;
+		gap: 20px;
 	}
 
-	.card-header .card-title {
-		margin-bottom: 0;
+	.page-eyebrow {
+		margin: 0 0 10px;
+		font-size: 0.8125rem;
+		font-weight: 700;
+		letter-spacing: 0.14em;
+		text-transform: uppercase;
+		color: var(--color-primary-bright);
+	}
+
+	.page-title {
+		margin: 0;
+		font-size: clamp(2.25rem, 6vw, 3.5rem);
+		line-height: 0.98;
+		letter-spacing: -0.035em;
 	}
 
 	.view-profile-btn {
-		font-size: 0.825rem;
-		font-weight: 500;
-		color: var(--color-primary);
-		text-decoration: none;
-		padding: 6px 12px;
-		border: 1.5px solid var(--color-primary-light);
-		border-radius: var(--radius-sm);
-		background: var(--color-primary-light);
-		transition: background 0.15s, border-color 0.15s;
+		min-height: 48px;
 	}
 
-	.view-profile-btn:hover {
-		background: var(--color-primary);
-		border-color: var(--color-primary);
-		color: white;
+	.card {
+		background: var(--color-surface);
+		border: 1px solid var(--color-border);
+		border-radius: var(--radius-card-lg);
+		padding: 36px 40px;
+		box-shadow: var(--shadow-sm);
 	}
 
 	.card-title {
-		font-size: 1.15rem;
-		font-weight: 700;
-		letter-spacing: -0.3px;
-		margin-bottom: 24px;
+		font-size: 1.625rem;
+		margin: 0 0 20px;
+	}
+
+	/* Banner */
+	.banner-section {
+		margin: -36px -40px 28px;
+	}
+
+	.banner-wrap {
+		position: relative;
+		height: 200px;
+		border-radius: var(--radius-card-lg) var(--radius-card-lg) 0 0;
+		overflow: hidden;
+		background: var(--color-ink);
+	}
+
+	.banner-img {
+		width: 100%;
+		height: 100%;
+		object-fit: cover;
+		display: block;
+	}
+
+	.banner-placeholder {
+		width: 100%;
+		height: 100%;
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		justify-content: center;
+		gap: 8px;
+		color: var(--color-lilac-soft);
+		background-image: radial-gradient(rgba(255, 255, 255, 0.07) 1px, transparent 1px);
+		background-size: 26px 26px;
+		font-size: 0.875rem;
+		font-weight: 600;
+	}
+
+	.banner-wrap.uploading .banner-placeholder {
+		opacity: 0.6;
+	}
+
+	.banner-cam {
+		position: absolute;
+		right: 16px;
+		bottom: 16px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: 44px;
+		height: 44px;
+		border-radius: 50%;
+		background: var(--color-ink);
+		color: var(--color-cream);
+		border: 3px solid var(--color-surface);
+		cursor: pointer;
+		box-shadow: 0 6px 16px rgba(23, 8, 47, 0.35);
+	}
+
+	.banner-section .avatar-error {
+		margin: 10px 40px 0;
+		max-width: none;
 	}
 
 	/* Avatar */
 	.avatar-section {
 		display: flex;
-		flex-direction: column;
 		align-items: center;
-		gap: 8px;
+		gap: 24px;
 		margin-bottom: 28px;
 	}
 
 	.avatar-wrap {
 		position: relative;
-		width: 96px;
-		height: 96px;
+		flex-shrink: 0;
+		width: 112px;
+		height: 112px;
 	}
 
 	.avatar-circle {
-		width: 96px;
-		height: 96px;
+		width: 112px;
+		height: 112px;
 		border-radius: 50%;
 		background: var(--color-primary);
 		color: white;
-		font-size: 2rem;
-		font-weight: 700;
+		font-family: var(--font-display);
+		font-size: 2.75rem;
+		font-weight: 800;
 		display: flex;
 		align-items: center;
 		justify-content: center;
 	}
 
-	.avatar-overlay {
+	.avatar-cam {
 		position: absolute;
-		inset: 0;
-		border-radius: 50%;
-		background: rgba(0, 0, 0, 0.45);
-		color: white;
+		right: -2px;
+		bottom: -2px;
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		opacity: 0;
-		transition: opacity 0.15s;
+		width: 44px;
+		height: 44px;
+		border-radius: 50%;
+		background: var(--color-ink);
+		color: var(--color-cream);
+		border: 4px solid var(--color-surface);
 		cursor: pointer;
-	}
-
-	.avatar-wrap:hover .avatar-overlay {
-		opacity: 1;
 	}
 
 	.sr-only {
@@ -594,8 +763,19 @@
 		clip: rect(0, 0, 0, 0);
 	}
 
+	.avatar-section-text {
+		display: flex;
+		flex-direction: column;
+		gap: 4px;
+	}
+
+	.avatar-heading {
+		margin: 0;
+		font-size: 1.625rem;
+	}
+
 	.avatar-hint {
-		font-size: 0.8rem;
+		font-size: 0.875rem;
 		color: var(--color-text-muted);
 	}
 
@@ -607,70 +787,34 @@
 		margin-bottom: 8px;
 	}
 
-	.field {
+	.form-field {
 		display: flex;
 		flex-direction: column;
 		gap: 6px;
 	}
 
-	.field.full {
+	.form-field.full {
 		grid-column: 1 / -1;
 	}
 
-	label {
+	label,
+	#tags-label,
+	#roles-label {
 		font-size: 0.875rem;
-		font-weight: 500;
+		font-weight: 600;
+		color: var(--color-text-strong);
 	}
 
-	input,
-	textarea {
-		width: 100%;
-		padding: 10px 14px;
-		border: 1.5px solid var(--color-border);
-		border-radius: var(--radius-sm);
-		font-size: 0.9rem;
-		background: var(--color-bg);
-		color: var(--color-text);
-		transition: border-color 0.15s;
-		outline: none;
-		font-family: inherit;
-	}
-
-	input:focus,
-	textarea:focus {
-		border-color: var(--color-primary);
-		background: var(--color-surface);
-	}
-
-	input::placeholder,
-	textarea::placeholder {
-		color: var(--color-text-muted);
-		opacity: 0.7;
-	}
-
-	textarea {
+	.field textarea {
 		resize: vertical;
 		line-height: 1.5;
-	}
-
-	.input-prefix-wrap {
-		display: flex;
+		min-height: 90px;
 	}
 
 	.input-prefix {
-		display: flex;
-		align-items: center;
-		padding: 10px 12px;
-		background: var(--color-bg);
-		border: 1.5px solid var(--color-border);
-		border-right: none;
-		border-radius: var(--radius-sm) 0 0 var(--radius-sm);
-		font-size: 0.9rem;
 		color: var(--color-text-muted);
-	}
-
-	.with-prefix {
-		border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+		font-size: 0.95rem;
+		flex-shrink: 0;
 	}
 
 	.subsection {
@@ -694,36 +838,11 @@
 		margin-top: 24px;
 	}
 
-	.save-btn {
-		background: var(--color-primary);
-		color: white;
-		border: none;
-		border-radius: var(--radius-sm);
-		padding: 10px 24px;
-		font-size: 0.9rem;
-		font-weight: 600;
-		transition: background 0.15s;
-	}
-
-	.save-btn:hover {
-		background: var(--color-primary-dark);
-	}
-
 	.success-msg {
 		background: #f0fdf4;
 		color: #16a34a;
 		border: 1px solid #bbf7d0;
-		border-radius: var(--radius-sm);
-		padding: 10px 14px;
-		font-size: 0.875rem;
-		margin-bottom: 16px;
-	}
-
-	.error-msg {
-		background: #fef2f2;
-		color: #dc2626;
-		border: 1px solid #fecaca;
-		border-radius: var(--radius-sm);
+		border-radius: var(--radius-md);
 		padding: 10px 14px;
 		font-size: 0.875rem;
 		margin-bottom: 16px;
@@ -742,16 +861,19 @@
 	}
 
 	.new-post-btn {
-		display: inline-block;
+		display: inline-flex;
+		align-items: center;
+		min-height: 36px;
 		text-decoration: none;
 		background: var(--color-primary-light);
-		color: var(--color-primary);
+		color: var(--color-primary-deep);
 		border: 1.5px solid var(--color-primary-light);
-		border-radius: var(--radius-sm);
-		padding: 8px 16px;
+		border-radius: var(--radius-pill);
+		padding: 0 16px;
 		font-size: 0.875rem;
-		font-weight: 600;
+		font-weight: 700;
 		transition: background 0.15s, border-color 0.15s;
+		cursor: pointer;
 	}
 
 	.new-post-btn:hover {
@@ -781,8 +903,9 @@
 	}
 
 	.empty-title {
+		font-family: var(--font-display);
 		font-size: 1rem;
-		font-weight: 600;
+		font-weight: 800;
 	}
 
 	.empty-sub {
@@ -859,7 +982,7 @@
 	}
 
 	.toggle-wrap input:checked + .toggle-track {
-		background: var(--color-primary);
+		background: var(--color-primary-bright);
 	}
 
 	.toggle-thumb {
@@ -880,8 +1003,8 @@
 
 	/* Danger zone */
 	.danger-zone {
-		background: #fff8f8;
-		border: 1px solid #fecaca;
+		background: var(--color-danger-bg);
+		border: 1px solid var(--color-danger-border);
 		border-radius: var(--radius-md);
 		padding: 20px;
 		display: flex;
@@ -892,28 +1015,16 @@
 	.danger-title {
 		font-size: 0.9rem;
 		font-weight: 700;
-		color: #dc2626;
+		color: var(--color-danger);
 	}
 
 	.danger-desc {
 		font-size: 0.82rem;
-		color: #7f1d1d;
+		color: var(--color-danger);
 	}
 
 	.delete-btn {
-		background: #dc2626;
-		color: white;
-		border: none;
-		border-radius: var(--radius-sm);
-		padding: 9px 20px;
-		font-size: 0.875rem;
-		font-weight: 600;
-		transition: background 0.15s;
 		align-self: flex-start;
-	}
-
-	.delete-btn:hover {
-		background: #b91c1c;
 	}
 
 	.delete-confirm {
@@ -924,7 +1035,7 @@
 
 	.confirm-msg {
 		font-size: 0.875rem;
-		color: #7f1d1d;
+		color: var(--color-danger);
 		line-height: 1.5;
 	}
 
@@ -937,10 +1048,11 @@
 	.cancel-btn {
 		background: none;
 		border: 1.5px solid var(--color-border);
-		border-radius: var(--radius-sm);
-		padding: 8px 16px;
+		border-radius: var(--radius-pill);
+		min-height: 44px;
+		padding: 0 20px;
 		font-size: 0.875rem;
-		font-weight: 500;
+		font-weight: 600;
 		color: var(--color-text-muted);
 		transition: border-color 0.15s, color 0.15s;
 	}
@@ -976,23 +1088,43 @@
 		max-width: 260px;
 	}
 
-	select {
-		width: 100%;
-		padding: 10px 14px;
+	.segmented {
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+		gap: 6px;
+		padding: 5px;
+		height: 54px;
+		box-sizing: border-box;
+		border-radius: var(--radius-input);
+		background: var(--color-surface-tint);
 		border: 1.5px solid var(--color-border);
-		border-radius: var(--radius-sm);
-		font-size: 0.9rem;
-		background: var(--color-bg);
-		color: var(--color-text);
-		transition: border-color 0.15s;
-		outline: none;
-		font-family: inherit;
+	}
+
+	.segment {
+		position: relative;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		border-radius: 11px;
+		font-size: 0.9375rem;
+		font-weight: 700;
+		color: var(--color-text-strong);
+		cursor: pointer;
+		transition: background 0.15s, color 0.15s;
+	}
+
+	.segment input {
+		position: absolute;
+		opacity: 0;
+		width: 100%;
+		height: 100%;
+		margin: 0;
 		cursor: pointer;
 	}
 
-	select:focus {
-		border-color: var(--color-primary);
-		background: var(--color-surface);
+	.segment.selected {
+		background: var(--color-ink);
+		color: var(--color-cream);
 	}
 
 	.role-chips {
@@ -1002,33 +1134,35 @@
 	}
 
 	.role-chip {
-		padding: 6px 14px;
-		border-radius: 999px;
+		min-height: 36px;
+		padding: 0 16px;
+		border-radius: var(--radius-pill);
 		border: 1.5px solid var(--color-border);
-		background: var(--color-bg);
+		background: var(--color-surface-tint);
 		color: var(--color-text-muted);
 		font-size: 0.85rem;
-		font-weight: 500;
+		font-weight: 600;
 		cursor: pointer;
 		transition: border-color 0.15s, background 0.15s, color 0.15s;
 		font-family: inherit;
 	}
 
 	.role-chip:hover {
-		border-color: var(--color-primary);
-		color: var(--color-primary);
+		border-color: var(--color-lilac);
+		color: var(--color-primary-deep);
+		background: var(--color-primary-light);
 	}
 
 	.role-chip-active {
-		background: var(--color-primary);
-		border-color: var(--color-primary);
-		color: white;
+		background: var(--color-ink);
+		border-color: var(--color-ink);
+		color: var(--color-cream);
 	}
 
 	.role-chip-active:hover {
-		background: var(--color-primary-dark);
-		border-color: var(--color-primary-dark);
-		color: white;
+		background: var(--color-ink);
+		border-color: var(--color-ink);
+		color: var(--color-cream);
 	}
 
 	/* Calendar */
@@ -1107,7 +1241,7 @@
 		width: 5px;
 		height: 5px;
 		border-radius: 50%;
-		background: var(--color-primary);
+		background: var(--color-primary-bright);
 		flex-shrink: 0;
 	}
 	.cal-day.has-events:not(.selected) {
@@ -1146,10 +1280,10 @@
 	.add-day-event-btn {
 		background: none;
 		border: 1px solid var(--color-border);
-		border-radius: var(--radius-sm);
-		padding: 4px 10px;
+		border-radius: var(--radius-pill);
+		padding: 4px 12px;
 		font-size: 0.78rem;
-		font-weight: 500;
+		font-weight: 600;
 		cursor: pointer;
 		color: var(--color-text-muted);
 		font-family: inherit;
@@ -1157,8 +1291,8 @@
 	}
 	.add-day-event-btn:hover {
 		background: var(--color-primary-light);
-		color: var(--color-primary);
-		border-color: var(--color-primary);
+		color: var(--color-primary-deep);
+		border-color: var(--color-lilac);
 	}
 	.event-item-editor {
 		display: flex;
@@ -1166,12 +1300,12 @@
 		align-items: flex-start;
 		padding: 12px;
 		border: 1px solid var(--color-border);
-		border-radius: var(--radius-sm);
+		border-radius: var(--radius-md);
 		background: var(--color-bg);
 	}
 	.event-time-badge {
 		font-size: 0.78rem;
-		color: var(--color-primary);
+		color: var(--color-primary-deep);
 		font-weight: 600;
 		white-space: nowrap;
 		padding-top: 2px;
@@ -1201,10 +1335,10 @@
 	.edit-event-btn {
 		background: none;
 		border: 1px solid var(--color-border);
-		border-radius: var(--radius-sm);
-		padding: 4px 10px;
+		border-radius: var(--radius-pill);
+		padding: 4px 12px;
 		font-size: 0.78rem;
-		font-weight: 500;
+		font-weight: 600;
 		cursor: pointer;
 		color: var(--color-text-muted);
 		font-family: inherit;
@@ -1216,18 +1350,18 @@
 	}
 	.del-event-btn {
 		background: none;
-		border: 1px solid #fecaca;
-		border-radius: var(--radius-sm);
-		padding: 4px 10px;
+		border: 1px solid var(--color-danger-border);
+		border-radius: var(--radius-pill);
+		padding: 4px 12px;
 		font-size: 0.78rem;
-		font-weight: 500;
+		font-weight: 600;
 		cursor: pointer;
-		color: #dc2626;
+		color: var(--color-danger);
 		font-family: inherit;
 		transition: background 0.15s;
 	}
 	.del-event-btn:hover {
-		background: #fff8f8;
+		background: var(--color-danger-bg);
 	}
 	.no-events-msg {
 		font-size: 0.875rem;
@@ -1241,7 +1375,7 @@
 		border: none;
 		padding: 0;
 		font: inherit;
-		color: var(--color-primary);
+		color: var(--color-primary-dark);
 		cursor: pointer;
 		text-decoration: underline;
 	}
@@ -1267,15 +1401,14 @@
 	.event-modal {
 		background: var(--color-surface);
 		border: 1px solid var(--color-border);
-		border-radius: var(--radius-lg);
-		box-shadow: var(--shadow-md);
+		border-radius: var(--radius-card);
+		box-shadow: var(--shadow-card-hover);
 		width: 460px;
 		max-width: calc(100vw - 32px);
 		padding: 28px;
 	}
 	.event-modal-title {
 		font-size: 1.05rem;
-		font-weight: 700;
 		margin: 0 0 20px;
 	}
 	.event-form-grid {
@@ -1283,12 +1416,7 @@
 		grid-template-columns: 1fr 1fr;
 		gap: 14px;
 	}
-	.event-form-grid .field {
-		display: flex;
-		flex-direction: column;
-		gap: 6px;
-	}
-	.event-form-grid .field.full {
+	.event-form-grid .form-field.full {
 		grid-column: 1 / -1;
 	}
 	.event-modal-actions {

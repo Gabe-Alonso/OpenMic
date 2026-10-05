@@ -71,20 +71,26 @@
 		flex-wrap: wrap;
 		gap: 6px;
 		align-items: center;
-		padding: 8px 12px;
+		padding: 8px 14px;
 		border: 1.5px solid var(--color-border);
-		border-radius: var(--radius-md);
-		background: var(--color-surface);
+		border-radius: var(--radius-input);
+		background: var(--color-surface-tint);
 		min-height: 44px;
 		cursor: text;
+		transition: border-color 0.15s, box-shadow 0.15s;
+	}
+
+	.tag-input:focus-within {
+		border-color: var(--color-primary);
+		box-shadow: 0 0 0 3px rgba(167, 139, 250, 0.35);
 	}
 
 	.chip {
 		display: inline-flex;
 		align-items: center;
 		gap: 4px;
-		background: var(--color-primary-light, #f0f0ff);
-		color: var(--color-primary);
+		background: var(--color-primary-light);
+		color: var(--color-primary-deep);
 		border-radius: 999px;
 		padding: 2px 10px 2px 10px;
 		font-size: 0.8rem;
@@ -98,7 +104,7 @@
 	.chip-remove {
 		background: none;
 		border: none;
-		color: var(--color-primary);
+		color: var(--color-primary-deep);
 		cursor: pointer;
 		font-size: 1rem;
 		line-height: 1;

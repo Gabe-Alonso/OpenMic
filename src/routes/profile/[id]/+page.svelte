@@ -140,198 +140,236 @@
 
 <div class="public-profile">
 
-	<div class="card">
-		<div class="profile-header">
-			<div class="avatar-wrap">
-				{#if profile.avatar_url}
-					<img src={profile.avatar_url} alt={profile.full_name ?? 'Profile'} class="avatar-img" />
-				{:else}
-					<div class="avatar-circle">{getInitial()}</div>
-				{/if}
-			</div>
-
-			<div class="header-info">
-				<div class="name-row">
-					<h1 class="display-name">{profile.full_name ?? 'Anonymous Artist'}</h1>
-					<div class="follow-stats">
-						<button class="stat stat-btn" onclick={() => openFollowModal('followers')}><strong>{followerCount}</strong> Followers</button>
-						<span class="stat-dot">·</span>
-						<button class="stat stat-btn" onclick={() => openFollowModal('following')}><strong>{data.followingCount}</strong> Following</button>
-					</div>
-				</div>
-				{#if profile.location}
-					<p class="location">
-						<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-							<path d="M20 10c0 6-8 13-8 13s-8-7-8-13a8 8 0 0 1 16 0Z" />
-							<circle cx="12" cy="10" r="3" />
-						</svg>
-						{profile.location}
-					</p>
-				{/if}
-			</div>
-
-			{#if !data.isOwnProfile}
-				<div class="profile-actions">
-					<button
-						class="follow-btn"
-						class:is-following={userFollows}
-						class:hovered={followBtnHovered && userFollows}
-						onmouseenter={() => (followBtnHovered = true)}
-						onmouseleave={() => (followBtnHovered = false)}
-						onclick={toggleFollow}
-						disabled={toggling}
-					>
-						{#if toggling}
-							<svg class="spin" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 2a10 10 0 0 1 10 10"/></svg>
-						{:else if userFollows && followBtnHovered}
-							Unfollow
-						{:else if userFollows}
-							Following
-						{:else}
-							Follow
-						{/if}
-					</button>
-					{#if data.user}
-						<button class="message-btn" onclick={startDM} disabled={dmLoading} aria-label="Message">
-							<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-								<path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
-								<polyline points="22,6 12,13 2,6"/>
-							</svg>
-							Message
-						</button>
-					{/if}
-				</div>
+	<section class="hero-card">
+		<div class="hero-band">
+			{#if (profile as any).banner_url}
+				<img src={(profile as any).banner_url} alt="" class="band-img" />
+				<div class="band-overlay" aria-hidden="true"></div>
+			{:else}
+				<div class="band-dots" aria-hidden="true"></div>
+				<div class="band-ring-a" aria-hidden="true"></div>
+				<div class="band-ring-b" aria-hidden="true"></div>
+				<div class="band-blob" aria-hidden="true"></div>
 			{/if}
 		</div>
 
-		{#if data.mutuals.length > 0}
-			<div class="mutuals-row">
-				<div class="mutual-avatars">
-					{#each data.mutuals.slice(0, 3) as m}
-						<div class="mutual-avatar" title={m.full_name ?? ''}>
-							{#if m.avatar_url}
-								<img src={m.avatar_url} alt={m.full_name ?? ''} />
-							{:else}
-								<div class="mutual-initial">{m.full_name?.[0]?.toUpperCase() ?? '?'}</div>
-							{/if}
-						</div>
-					{/each}
-				</div>
-				<span class="mutuals-text">Followed by {formatMutuals(data.mutuals)}</span>
-			</div>
-		{/if}
-
-		{#if profile.bio}
-			<div class="section">
-				<h2 class="section-title">About</h2>
-				<p class="bio">{profile.bio}</p>
-			</div>
-		{/if}
-
-		{#if profile.contact_email || profile.instagram}
-			<div class="section">
-				<h2 class="section-title">Contact</h2>
-				<div class="contact-list">
-					{#if profile.contact_email}
-						<a href="mailto:{profile.contact_email}" class="contact-item">
-							<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-								<rect width="20" height="16" x="2" y="4" rx="2" />
-								<path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
-							</svg>
-							{profile.contact_email}
-						</a>
-					{/if}
-					{#if profile.instagram}
-						<a href="https://instagram.com/{profile.instagram}" target="_blank" rel="noopener noreferrer" class="contact-item">
-							<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-								<rect width="20" height="20" x="2" y="2" rx="5" ry="5" />
-								<path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" />
-								<line x1="17.5" x2="17.51" y1="6.5" y2="6.5" />
-							</svg>
-							@{profile.instagram}
-						</a>
-					{/if}
-				</div>
-			</div>
-		{/if}
-	</div>
-
-	<div class="card">
-		<div class="cal-header">
-			<h2 class="card-title">Events</h2>
-			<div class="cal-nav">
-				<button class="cal-nav-btn" onclick={prevMonth}>
-					<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="m15 18-6-6 6-6"/></svg>
-				</button>
-				<span class="cal-month-label">{monthLabel}</span>
-				<button class="cal-nav-btn" onclick={nextMonth}>
-					<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="m9 18 6-6-6-6"/></svg>
-				</button>
-			</div>
-		</div>
-
-		<div class="cal-grid">
-			{#each ['Su','Mo','Tu','We','Th','Fr','Sa'] as dow}
-				<div class="cal-dow">{dow}</div>
-			{/each}
-			{#each calGrid as cell (dateKey(cell.date))}
-				{@const key = dateKey(cell.date)}
-				{@const hasEvs = eventsByDate.has(key)}
-				<button
-					class="cal-day"
-					class:other-month={!cell.isCurrentMonth}
-					class:has-events={hasEvs}
-					class:selected={selectedDay === key}
-					onclick={() => { selectedDay = selectedDay === key ? null : key; }}
-				>
-					<span class="day-num">{cell.date.getDate()}</span>
-					{#if hasEvs}<span class="event-dot"></span>{/if}
-				</button>
-			{/each}
-		</div>
-
-		{#if selectedDay}
-			<div class="day-panel">
-				<h3 class="day-panel-title">{formatSelectedDay(selectedDay)}</h3>
-				{#each (eventsByDate.get(selectedDay) ?? []) as ev (ev.id)}
-					<div class="event-item">
-						<div class="event-time-badge">
-							{#if ev.start_time}
-								{formatTime(ev.start_time)}{ev.end_time ? ` – ${formatTime(ev.end_time)}` : ''}
-							{:else}
-								All day
-							{/if}
-						</div>
-						<div class="event-info">
-							<p class="event-title">{ev.title}</p>
-							{#if ev.description}<p class="event-desc">{ev.description}</p>{/if}
-						</div>
+		<div class="hero-body">
+			<div class="profile-header">
+				<div class="header-left">
+					<div class="avatar-wrap">
+						{#if profile.avatar_url}
+							<img src={profile.avatar_url} alt={profile.full_name ?? 'Profile'} class="avatar-img" />
+						{:else}
+							<div class="avatar-circle">{getInitial()}</div>
+						{/if}
 					</div>
-				{/each}
-				{#if !(eventsByDate.get(selectedDay)?.length)}
-					<p class="no-events-msg">No events scheduled for this day.</p>
+					<div class="header-info">
+						<h1 class="display-name">{profile.full_name ?? 'Anonymous Artist'}</h1>
+						{#if profile.location}
+							<p class="location">
+								<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+									<path d="M20 10c0 6-8 13-8 13s-8-7-8-13a8 8 0 0 1 16 0Z" />
+									<circle cx="12" cy="10" r="3" />
+								</svg>
+								{profile.location}
+							</p>
+						{/if}
+					</div>
+				</div>
+
+				{#if !data.isOwnProfile}
+					<div class="profile-actions">
+						<button
+							class="follow-btn"
+							class:is-following={userFollows}
+							class:hovered={followBtnHovered && userFollows}
+							onmouseenter={() => (followBtnHovered = true)}
+							onmouseleave={() => (followBtnHovered = false)}
+							onclick={toggleFollow}
+							disabled={toggling}
+						>
+							{#if toggling}
+								<svg class="spin" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 2a10 10 0 0 1 10 10"/></svg>
+							{:else if userFollows && followBtnHovered}
+								Unfollow
+							{:else if userFollows}
+								Following
+							{:else}
+								Follow
+							{/if}
+						</button>
+						{#if data.user}
+							<button class="message-btn" onclick={startDM} disabled={dmLoading} aria-label="Message">
+								<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+									<path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+									<polyline points="22,6 12,13 2,6"/>
+								</svg>
+								Message
+							</button>
+						{/if}
+					</div>
 				{/if}
 			</div>
-		{:else if ((data as any).venueEvents ?? []).length === 0}
-			<p class="cal-empty">No events scheduled yet.</p>
-		{/if}
-	</div>
 
-	<div class="card">
-		<h2 class="card-title">Posts</h2>
-		{#if data.posts.length > 0}
-			<div class="posts-list">
-				{#each data.posts as post}
-					<PostCard {post} likeCount={data.likeCounts[post.id] ?? 0} />
-				{/each}
+			<div class="chips-stats-row">
+				{#if (profile as any).artist_roles?.length > 0 || (profile as any).tags?.length > 0}
+					<div class="role-chips">
+						{#each (profile as any).artist_roles ?? [] as role}
+							<span class="chip role-chip">{role}</span>
+						{/each}
+						{#each (profile as any).tags ?? [] as tag}
+							<span class="chip">#{tag}</span>
+						{/each}
+					</div>
+				{:else}
+					<span></span>
+				{/if}
+				<div class="follow-stats">
+					<button class="stat stat-btn" onclick={() => openFollowModal('followers')}><strong>{followerCount}</strong> Followers</button>
+					<span class="stat-dot" aria-hidden="true"></span>
+					<button class="stat stat-btn" onclick={() => openFollowModal('following')}><strong>{data.followingCount}</strong> Following</button>
+				</div>
 			</div>
-		{:else}
-			<div class="empty-state">
-				<span class="empty-icon">🎵</span>
-				<p class="empty-title">Nothing here yet</p>
-				<p class="empty-sub">This artist hasn't posted anything yet.</p>
-			</div>
-		{/if}
+
+			{#if data.mutuals.length > 0}
+				<div class="mutuals-row">
+					<div class="mutual-avatars">
+						{#each data.mutuals.slice(0, 3) as m}
+							<div class="mutual-avatar" title={m.full_name ?? ''}>
+								{#if m.avatar_url}
+									<img src={m.avatar_url} alt={m.full_name ?? ''} />
+								{:else}
+									<div class="mutual-initial">{m.full_name?.[0]?.toUpperCase() ?? '?'}</div>
+								{/if}
+							</div>
+						{/each}
+					</div>
+					<span class="mutuals-text">Followed by {formatMutuals(data.mutuals)}</span>
+				</div>
+			{/if}
+		</div>
+	</section>
+
+	<div class="profile-body">
+		<div class="main-col">
+			{#if profile.bio}
+				<section class="card">
+					<h2 class="card-title">About</h2>
+					<p class="bio">{profile.bio}</p>
+				</section>
+			{/if}
+
+			<section class="card">
+				<h2 class="card-title">Posts</h2>
+				{#if data.posts.length > 0}
+					<div class="posts-list">
+						{#each data.posts as post}
+							<PostCard {post} likeCount={data.likeCounts[post.id] ?? 0} />
+						{/each}
+					</div>
+				{:else}
+					<div class="empty-state">
+						<span class="empty-icon">🎵</span>
+						<p class="empty-title">Nothing here yet</p>
+						<p class="empty-sub">This artist hasn't posted anything yet.</p>
+					</div>
+				{/if}
+			</section>
+		</div>
+
+		<aside class="aside-col">
+			<section class="card" aria-label="Events">
+				<div class="cal-header">
+					<h2 class="card-title">Events</h2>
+					<div class="cal-nav">
+						<button class="cal-nav-btn" onclick={prevMonth} aria-label="Previous month">
+							<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="m15 18-6-6 6-6"/></svg>
+						</button>
+						<span class="cal-month-label">{monthLabel}</span>
+						<button class="cal-nav-btn" onclick={nextMonth} aria-label="Next month">
+							<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="m9 18 6-6-6-6"/></svg>
+						</button>
+					</div>
+				</div>
+
+				<div class="cal-grid">
+					{#each ['Su','Mo','Tu','We','Th','Fr','Sa'] as dow}
+						<div class="cal-dow">{dow}</div>
+					{/each}
+					{#each calGrid as cell (dateKey(cell.date))}
+						{@const key = dateKey(cell.date)}
+						{@const hasEvs = eventsByDate.has(key)}
+						<button
+							class="cal-day"
+							class:other-month={!cell.isCurrentMonth}
+							class:has-events={hasEvs}
+							class:selected={selectedDay === key}
+							onclick={() => { selectedDay = selectedDay === key ? null : key; }}
+						>
+							<span class="day-num">{cell.date.getDate()}</span>
+							{#if hasEvs}<span class="event-dot"></span>{/if}
+						</button>
+					{/each}
+				</div>
+
+				{#if selectedDay}
+					<div class="day-panel">
+						<h3 class="day-panel-title">{formatSelectedDay(selectedDay)}</h3>
+						{#each (eventsByDate.get(selectedDay) ?? []) as ev (ev.id)}
+							<div class="event-item">
+								<div class="event-time-badge">
+									{#if ev.start_time}
+										{formatTime(ev.start_time)}{ev.end_time ? ` – ${formatTime(ev.end_time)}` : ''}
+									{:else}
+										All day
+									{/if}
+								</div>
+								<div class="event-info">
+									<p class="event-title">{ev.title}</p>
+									{#if ev.description}<p class="event-desc">{ev.description}</p>{/if}
+								</div>
+							</div>
+						{/each}
+						{#if !(eventsByDate.get(selectedDay)?.length)}
+							<p class="no-events-msg">No events scheduled for this day.</p>
+						{/if}
+					</div>
+				{:else if ((data as any).venueEvents ?? []).length === 0}
+					<p class="cal-empty">No events scheduled yet.</p>
+				{/if}
+			</section>
+
+			{#if profile.contact_email || profile.instagram}
+				<section class="card">
+					<h2 class="card-title">Contact</h2>
+					<div class="contact-list">
+						{#if profile.contact_email}
+							<a href="mailto:{profile.contact_email}" class="contact-item">
+								<span class="contact-icon">
+									<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+										<rect width="20" height="16" x="2" y="4" rx="2" />
+										<path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
+									</svg>
+								</span>
+								{profile.contact_email}
+							</a>
+						{/if}
+						{#if profile.instagram}
+							<a href="https://instagram.com/{profile.instagram}" target="_blank" rel="noopener noreferrer" class="contact-item">
+								<span class="contact-icon">
+									<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+										<rect width="20" height="20" x="2" y="2" rx="5" ry="5" />
+										<path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" />
+										<line x1="17.5" x2="17.51" y1="6.5" y2="6.5" />
+									</svg>
+								</span>
+								@{profile.instagram}
+							</a>
+						{/if}
+					</div>
+				</section>
+			{/if}
+		</aside>
 	</div>
 
 </div>
@@ -383,7 +421,7 @@
 
 <style>
 	.public-profile {
-		max-width: 720px;
+		max-width: 1160px;
 		margin: 0 auto;
 		display: flex;
 		flex-direction: column;
@@ -393,93 +431,189 @@
 	.card {
 		background: var(--color-surface);
 		border: 1px solid var(--color-border);
-		border-radius: var(--radius-lg);
-		padding: 32px;
-		box-shadow: var(--shadow-sm);
+		border-radius: var(--radius-card-lg);
+		padding: 36px;
+	}
+
+	.role-chips {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 8px;
+	}
+
+	.role-chip {
+		background: var(--color-ink);
+		color: var(--color-cream);
+	}
+
+	/* Hero card */
+	.hero-card {
+		overflow: hidden;
+		border-radius: var(--radius-panel);
+		background: var(--color-surface);
+		border: 1px solid var(--color-border);
+		box-shadow: 0 20px 50px rgba(76, 29, 149, 0.1);
+	}
+
+	.hero-band {
+		position: relative;
+		height: 168px;
+		background: var(--color-ink);
+		overflow: hidden;
+	}
+
+	.band-dots {
+		position: absolute;
+		inset: 0;
+		background-image: radial-gradient(rgba(255, 255, 255, 0.08) 1px, transparent 1px);
+		background-size: 26px 26px;
+	}
+
+	.band-ring-a {
+		position: absolute;
+		right: -80px;
+		top: -150px;
+		width: 420px;
+		height: 420px;
+		border-radius: 50%;
+		border: 1px solid rgba(196, 181, 253, 0.25);
+	}
+
+	.band-ring-b {
+		position: absolute;
+		right: 20px;
+		top: -90px;
+		width: 300px;
+		height: 300px;
+		border-radius: 50%;
+		border: 1px solid rgba(196, 181, 253, 0.35);
+	}
+
+	.band-blob {
+		position: absolute;
+		right: 120px;
+		top: -30px;
+		width: 160px;
+		height: 160px;
+		border-radius: 50%;
+		background: var(--color-primary);
+		opacity: 0.55;
+	}
+
+	.band-img {
+		position: absolute;
+		inset: 0;
+		width: 100%;
+		height: 100%;
+		object-fit: cover;
+	}
+
+	.band-overlay {
+		position: absolute;
+		inset: 0;
+		background: linear-gradient(180deg, rgba(23, 8, 47, 0) 0%, rgba(23, 8, 47, 0.45) 100%);
+	}
+
+	.hero-body {
+		padding: 0 40px 32px;
 	}
 
 	/* Header */
 	.profile-header {
 		display: flex;
-		align-items: center;
+		flex-wrap: wrap;
+		align-items: flex-end;
+		justify-content: space-between;
 		gap: 20px;
-		margin-bottom: 20px;
+	}
+
+	.header-left {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: flex-end;
+		gap: 24px;
 	}
 
 	.avatar-wrap {
+		position: relative;
+		z-index: 2;
 		flex-shrink: 0;
+		margin-top: -64px;
 	}
 
 	.avatar-img {
-		width: 88px;
-		height: 88px;
+		width: 128px;
+		height: 128px;
 		border-radius: 50%;
 		object-fit: cover;
+		border: 6px solid var(--color-surface);
+		box-shadow: 0 14px 30px rgba(76, 29, 149, 0.3);
 	}
 
 	.avatar-circle {
-		width: 88px;
-		height: 88px;
+		width: 128px;
+		height: 128px;
 		border-radius: 50%;
 		background: var(--color-primary);
 		color: white;
-		font-size: 2rem;
-		font-weight: 700;
+		font-family: var(--font-display);
+		font-size: 2.5rem;
+		font-weight: 800;
 		display: flex;
 		align-items: center;
 		justify-content: center;
+		border: 6px solid var(--color-surface);
+		box-shadow: 0 14px 30px rgba(76, 29, 149, 0.3);
 	}
 
 	.header-info {
-		flex: 1;
-		min-width: 0;
 		display: flex;
 		flex-direction: column;
-		gap: 6px;
-	}
-
-	.name-row {
-		display: flex;
-		align-items: baseline;
-		flex-wrap: wrap;
-		gap: 10px;
+		gap: 8px;
+		padding-bottom: 4px;
 	}
 
 	.display-name {
-		font-size: 1.5rem;
-		font-weight: 700;
-		letter-spacing: -0.4px;
+		font-size: clamp(1.75rem, 4.6vw, 2.5rem);
+		line-height: 1;
 		margin: 0;
-		flex-shrink: 0;
+	}
+
+	.chips-stats-row {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		justify-content: space-between;
+		gap: 16px;
+		margin-top: 24px;
 	}
 
 	.follow-stats {
 		display: flex;
 		align-items: center;
-		gap: 6px;
-		flex-shrink: 0;
-	}
-
-	.stat {
-		font-size: 0.82rem;
+		gap: 20px;
+		font-size: 0.9375rem;
 		color: var(--color-text-muted);
 	}
 
 	.stat strong {
 		color: var(--color-text);
-		font-weight: 600;
+		font-weight: 700;
+		font-size: 1.0625rem;
 	}
 
 	.stat-dot {
-		font-size: 0.75rem;
-		color: var(--color-text-muted);
+		width: 4px;
+		height: 4px;
+		border-radius: 50%;
+		background: var(--color-border-strong);
 	}
 
 	.location {
 		display: flex;
 		align-items: center;
-		gap: 5px;
-		font-size: 0.875rem;
+		gap: 6px;
+		font-size: 0.9375rem;
 		color: var(--color-text-muted);
 		margin: 0;
 	}
@@ -488,7 +622,7 @@
 	.profile-actions {
 		display: flex;
 		align-items: center;
-		gap: 8px;
+		gap: 10px;
 		flex-shrink: 0;
 	}
 
@@ -496,21 +630,20 @@
 		display: flex;
 		align-items: center;
 		gap: 6px;
-		padding: 9px 16px;
-		border-radius: var(--radius-sm);
+		min-height: 44px;
+		padding: 0 18px;
+		border-radius: var(--radius-pill);
 		font-size: 0.875rem;
-		font-weight: 600;
+		font-weight: 700;
 		cursor: pointer;
 		transition: background 0.15s, border-color 0.15s, color 0.15s;
-		background: none;
-		color: var(--color-text);
-		border: 1.5px solid var(--color-border);
+		background: var(--color-surface);
+		color: var(--color-primary-deep);
+		border: 1.5px solid var(--color-border-strong);
 	}
 
 	.message-btn:hover:not(:disabled) {
 		background: var(--color-primary-light);
-		border-color: var(--color-primary);
-		color: var(--color-primary);
 	}
 
 	.message-btn:disabled {
@@ -524,15 +657,17 @@
 		align-items: center;
 		gap: 6px;
 		flex-shrink: 0;
-		padding: 9px 22px;
-		border-radius: var(--radius-sm);
+		min-height: 44px;
+		padding: 0 24px;
+		border-radius: var(--radius-pill);
 		font-size: 0.875rem;
-		font-weight: 600;
+		font-weight: 700;
 		cursor: pointer;
 		transition: background 0.15s, border-color 0.15s, color 0.15s;
 		background: var(--color-primary);
 		color: white;
 		border: 1.5px solid var(--color-primary);
+		box-shadow: var(--shadow-btn);
 	}
 
 	.follow-btn:hover:not(.is-following):not(:disabled) {
@@ -544,6 +679,7 @@
 		background: none;
 		color: var(--color-text);
 		border-color: var(--color-border);
+		box-shadow: none;
 	}
 
 	.follow-btn.is-following.hovered {
@@ -569,11 +705,10 @@
 	.mutuals-row {
 		display: flex;
 		align-items: center;
-		gap: 10px;
-		padding: 12px 16px;
-		background: var(--color-bg);
-		border-radius: var(--radius-md);
-		margin-bottom: 20px;
+		gap: 12px;
+		margin-top: 24px;
+		padding-top: 20px;
+		border-top: 1px solid var(--color-border-soft);
 	}
 
 	.mutual-avatars {
@@ -583,8 +718,8 @@
 	}
 
 	.mutual-avatar {
-		width: 24px;
-		height: 24px;
+		width: 28px;
+		height: 28px;
 		border-radius: 50%;
 		overflow: hidden;
 		border: 2px solid var(--color-surface);
@@ -604,7 +739,7 @@
 	.mutual-initial {
 		width: 100%;
 		height: 100%;
-		background: var(--color-primary);
+		background: var(--color-primary-bright);
 		color: white;
 		font-size: 0.6rem;
 		font-weight: 700;
@@ -619,31 +754,35 @@
 		line-height: 1.4;
 	}
 
-	/* Sections */
-	.section {
-		padding-top: 24px;
-		border-top: 1px solid var(--color-border);
+	/* Two-column body */
+	.profile-body {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: flex-start;
+		gap: 20px;
+	}
+
+	.main-col {
+		flex: 999 1 520px;
+		min-width: 0;
 		display: flex;
 		flex-direction: column;
-		gap: 10px;
+		gap: 20px;
 	}
 
-	.section + .section {
-		margin-top: 0;
-	}
-
-	.section-title {
-		font-size: 0.875rem;
-		font-weight: 600;
-		color: var(--color-text-muted);
-		text-transform: uppercase;
-		letter-spacing: 0.05em;
+	.aside-col {
+		flex: 1 1 340px;
+		max-width: 440px;
+		min-width: 0;
+		display: flex;
+		flex-direction: column;
+		gap: 20px;
 	}
 
 	.bio {
-		font-size: 0.9rem;
-		line-height: 1.65;
-		color: var(--color-text);
+		font-size: 1.0625rem;
+		line-height: 1.7;
+		color: var(--color-text-body);
 		white-space: pre-wrap;
 		margin: 0;
 	}
@@ -652,21 +791,37 @@
 	.contact-list {
 		display: flex;
 		flex-direction: column;
-		gap: 10px;
+		gap: 8px;
 	}
 
 	.contact-item {
 		display: flex;
 		align-items: center;
-		gap: 8px;
-		font-size: 0.875rem;
-		color: var(--color-primary);
+		gap: 14px;
+		padding: 12px;
+		border-radius: 18px;
+		background: var(--color-surface-tint);
+		font-size: 0.9375rem;
+		font-weight: 600;
+		color: var(--color-text);
 		text-decoration: none;
-		width: fit-content;
+		transition: background 0.15s;
 	}
 
 	.contact-item:hover {
-		text-decoration: underline;
+		background: var(--color-primary-light);
+	}
+
+	.contact-icon {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: 40px;
+		height: 40px;
+		border-radius: 14px;
+		background: var(--color-primary-light);
+		color: var(--color-primary);
+		flex-shrink: 0;
 	}
 
 	/* Posts */
@@ -677,10 +832,8 @@
 	}
 
 	.card-title {
-		font-size: 1.15rem;
-		font-weight: 700;
-		letter-spacing: -0.3px;
-		margin-bottom: 24px;
+		font-size: 1.625rem;
+		margin: 0 0 16px;
 	}
 
 	.empty-state {
@@ -698,8 +851,9 @@
 	}
 
 	.empty-title {
+		font-family: var(--font-display);
 		font-size: 1rem;
-		font-weight: 600;
+		font-weight: 800;
 	}
 
 	.empty-sub {
@@ -738,8 +892,8 @@
 	.modal {
 		background: var(--color-surface);
 		border: 1px solid var(--color-border);
-		border-radius: var(--radius-lg);
-		box-shadow: var(--shadow-md);
+		border-radius: var(--radius-card);
+		box-shadow: var(--shadow-card-hover);
 		width: 360px;
 		max-width: calc(100vw - 32px);
 		max-height: 70vh;
@@ -806,7 +960,7 @@
 		height: 40px;
 		border-radius: 50%;
 		flex-shrink: 0;
-		background: var(--color-primary);
+		background: var(--color-primary-bright);
 		display: flex;
 		align-items: center;
 		justify-content: center;
@@ -920,7 +1074,7 @@
 		width: 5px;
 		height: 5px;
 		border-radius: 50%;
-		background: var(--color-primary);
+		background: var(--color-primary-bright);
 		flex-shrink: 0;
 	}
 	.cal-day.has-events:not(.selected) {
@@ -958,7 +1112,7 @@
 	}
 	.event-time-badge {
 		font-size: 0.78rem;
-		color: var(--color-primary);
+		color: var(--color-primary-deep);
 		font-weight: 600;
 		white-space: nowrap;
 		padding-top: 2px;
@@ -989,5 +1143,25 @@
 		padding: 20px 0 8px;
 		border-top: 1px solid var(--color-border);
 		margin-top: 4px;
+	}
+
+	@media (max-width: 640px) {
+		.hero-body {
+			padding: 0 20px 24px;
+		}
+
+		.avatar-wrap {
+			margin-top: -48px;
+		}
+
+		.avatar-img,
+		.avatar-circle {
+			width: 88px;
+			height: 88px;
+		}
+
+		.header-left {
+			align-items: center;
+		}
 	}
 </style>

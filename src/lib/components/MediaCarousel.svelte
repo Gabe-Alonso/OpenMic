@@ -27,7 +27,7 @@
 </script>
 
 <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
-<div class="carousel" tabindex={0} onkeydown={onKeydown}>
+<div class="carousel" role="group" aria-label="Media carousel" tabindex={0} onkeydown={onKeydown}>
 	{#each items as item, i}
 		{#if i === current}
 			<div class="slide">
@@ -70,7 +70,7 @@
 		position: relative;
 		width: 100%;
 		height: 100%;
-		background: #111;
+		background: var(--color-ink);
 		outline: none;
 		overflow: hidden;
 	}
@@ -100,11 +100,11 @@
 		position: absolute;
 		top: 50%;
 		transform: translateY(-50%);
-		background: rgba(255, 255, 255, 0.15);
-		border: none;
+		background: rgba(255, 255, 255, 0.14);
+		border: 1px solid rgba(255, 255, 255, 0.2);
 		border-radius: 50%;
-		width: 40px;
-		height: 40px;
+		width: 44px;
+		height: 44px;
 		display: flex;
 		align-items: center;
 		justify-content: center;
@@ -148,7 +148,7 @@
 	}
 
 	.dot.active {
-		background: white;
+		background: var(--color-lilac);
 		transform: scale(1.2);
 	}
 </style>

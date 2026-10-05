@@ -88,13 +88,14 @@
 
 	input[type='text'] {
 		width: 100%;
-		padding: 10px 14px;
+		min-height: 44px;
+		padding: 10px 16px;
 		border: 1.5px solid var(--color-border);
-		border-radius: var(--radius-sm);
+		border-radius: var(--radius-input);
 		font-size: 0.9rem;
-		background: var(--color-bg);
+		background: var(--color-surface-tint);
 		color: var(--color-text);
-		transition: border-color 0.15s;
+		transition: border-color 0.15s, box-shadow 0.15s;
 		outline: none;
 		font-family: inherit;
 		box-sizing: border-box;
@@ -103,6 +104,7 @@
 	input[type='text']:focus {
 		border-color: var(--color-primary);
 		background: var(--color-surface);
+		box-shadow: 0 0 0 3px rgba(167, 139, 250, 0.35);
 	}
 
 	input[type='text']::placeholder {
@@ -112,17 +114,17 @@
 
 	.dropdown {
 		position: absolute;
-		top: calc(100% + 4px);
+		top: calc(100% + 6px);
 		left: 0;
 		right: 0;
 		background: var(--color-surface);
-		border: 1.5px solid var(--color-border);
-		border-radius: var(--radius-sm);
-		box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+		border: 1px solid var(--color-border);
+		border-radius: 22px;
+		box-shadow: var(--shadow-card-hover);
 		z-index: 100;
 		list-style: none;
 		margin: 0;
-		padding: 4px;
+		padding: 6px;
 	}
 
 	.dropdown li {
@@ -131,20 +133,22 @@
 
 	.dropdown button {
 		width: 100%;
+		min-height: 44px;
 		text-align: left;
 		background: none;
 		border: none;
-		padding: 10px 12px;
-		border-radius: calc(var(--radius-sm) - 2px);
+		padding: 8px 14px;
+		border-radius: var(--radius-md);
 		cursor: pointer;
 		display: flex;
 		flex-direction: column;
+		justify-content: center;
 		gap: 2px;
 		transition: background 0.1s;
 	}
 
 	.dropdown button:hover {
-		background: var(--color-bg);
+		background: var(--color-primary-light);
 	}
 
 	.place-name {

@@ -8,13 +8,18 @@
 	type Tab = 'discover' | 'local' | 'following';
 	let activeTab = $state<Tab>('discover');
 
+	const TAB_DESC: Record<Tab, string> = {
+		discover: 'Most engaged posts from across the platform.',
+		local: 'Posts from artists within your area.',
+		following: 'Posts from people you follow.'
+	};
+
 	// --- Local tab ---
 	const RADIUS_OPTIONS = [10, 25, 50, 100, 250];
 	let localRadius = $state(50);
 	let localLoading = $state(false);
 	let localPosts = $state<any[] | null>(null);
 	let localLikeCounts = $state<Record<string, number>>({});
-	let localNoLocation = $state(false);
 
 	// --- Following tab ---
 	let followingLoading = $state(false);
@@ -27,7 +32,6 @@
 		const res = await fetch(`/api/community/local?radius=${localRadius}`);
 		if (res.ok) {
 			const json = await res.json();
-			localNoLocation = json.noLocation ?? false;
 			localPosts = json.posts ?? [];
 			localLikeCounts = json.likeCounts ?? {};
 		}
@@ -66,179 +70,200 @@
 		includeFollowers = !includeFollowers;
 		await loadFollowing();
 	}
+
+	function stripHtml(html: string | null): string {
+		return (html ?? '').replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim();
+	}
+
+	function timeAgo(dateStr: string): string {
+		const diff = Date.now() - new Date(dateStr).getTime();
+		const mins = Math.floor(diff / 60000);
+		if (mins < 60) return `${mins}m ago`;
+		const hrs = Math.floor(mins / 60);
+		if (hrs < 24) return `${hrs}h ago`;
+		const days = Math.floor(hrs / 24);
+		if (days < 30) return `${days}d ago`;
+		return new Date(dateStr).toLocaleDateString();
+	}
+
+	const featuredPost = $derived(activeTab === 'discover' && data.discoverPosts.length > 0 ? data.discoverPosts[0] : null);
+	const restPosts = $derived(activeTab === 'discover' ? data.discoverPosts.slice(1) : []);
 </script>
 
 <div class="community-page">
-	<div class="page-header">
-		<div class="page-title-row">
-			<h1 class="page-title">Community</h1>
-			<a href="/create-post" class="create-post-btn">
-				<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-					<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-				</svg>
-				New Post
-			</a>
+	<div class="page-header-row">
+		<div class="page-heading">
+			<div class="deco-ring-a" aria-hidden="true"></div>
+			<div class="deco-ring-b" aria-hidden="true"></div>
+			<span class="eyebrow">The feed</span>
+			<h1>Community</h1>
+			<p class="tab-desc">{TAB_DESC[activeTab]}</p>
 		</div>
-		<div class="tabs" role="tablist">
-			<button
-				role="tab"
-				class="tab-btn"
-				class:active={activeTab === 'discover'}
-				onclick={() => switchTab('discover')}
-			>
-				<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-					<circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" />
-				</svg>
+		<a href="/post/new" class="btn btn-primary new-post-btn">
+			<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
+				<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+			</svg>
+			New Post
+		</a>
+	</div>
+
+	<div class="tabs-row">
+		<div class="tab-group" role="tablist" aria-label="Feed">
+			<button role="tab" aria-selected={activeTab === 'discover'} class="tab-btn" class:active={activeTab === 'discover'} onclick={() => switchTab('discover')}>
+				<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
 				Discover
 			</button>
-			<button
-				role="tab"
-				class="tab-btn"
-				class:active={activeTab === 'local'}
-				onclick={() => switchTab('local')}
-			>
-				<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-					<path d="M20 10c0 6-8 13-8 13s-8-7-8-13a8 8 0 0 1 16 0Z" /><circle cx="12" cy="10" r="3" />
-				</svg>
+			<button role="tab" aria-selected={activeTab === 'local'} class="tab-btn" class:active={activeTab === 'local'} onclick={() => switchTab('local')}>
+				<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 13-8 13s-8-7-8-13a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
 				Local
 			</button>
-			<button
-				role="tab"
-				class="tab-btn"
-				class:active={activeTab === 'following'}
-				onclick={() => switchTab('following')}
-			>
-				<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-					<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" />
-				</svg>
+			<button role="tab" aria-selected={activeTab === 'following'} class="tab-btn" class:active={activeTab === 'following'} onclick={() => switchTab('following')}>
+				<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
 				Following
 			</button>
 		</div>
+
+		{#if activeTab === 'local' && data.isSignedIn && data.userHasLocation}
+			<div class="radius-row">
+				<label for="radius-select" class="radius-label">Radius</label>
+				<select id="radius-select" class="radius-select" bind:value={localRadius} onchange={handleRadiusChange} disabled={localLoading}>
+					{#each RADIUS_OPTIONS as r}
+						<option value={r}>{r} mi</option>
+					{/each}
+				</select>
+			</div>
+		{/if}
+
+		{#if activeTab === 'following' && data.isSignedIn}
+			<button class="follow-switch" onclick={handleToggleFollowers} role="switch" aria-checked={includeFollowers}>
+				<span class="switch-track" class:on={includeFollowers}>
+					<span class="switch-thumb"></span>
+				</span>
+				Include followers
+			</button>
+		{/if}
 	</div>
 
 	<!-- DISCOVER TAB -->
 	{#if activeTab === 'discover'}
-		<div class="tab-pane">
-			<p class="tab-desc">Most engaged posts from across the platform.</p>
-			{#if data.discoverPosts.length === 0}
-				<div class="empty-state">
-					<span class="empty-icon">🎵</span>
-					<p class="empty-title">No posts yet</p>
-					<p class="empty-sub">Be the first to share something with the community.</p>
-				</div>
-			{:else}
-				<div class="feed">
-					{#each data.discoverPosts as post (post.id)}
-						<PostCard {post} likeCount={data.likeCounts[post.id] ?? 0} showAuthor={true} />
-					{/each}
-				</div>
-			{/if}
-		</div>
+		{#if data.discoverPosts.length === 0}
+			<div class="empty-state">
+				<span class="empty-icon-chip">
+					<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+				</span>
+				<h2 class="empty-title">No posts yet</h2>
+				<p class="empty-sub">Be the first to share something with the community.</p>
+				<a href="/post/new" class="btn btn-primary">New Post</a>
+			</div>
+		{:else}
+			<div class="feed">
+				{#if featuredPost}
+					<a href="/post/{featuredPost.id}" class="featured-card">
+						<div class="featured-text">
+							<div class="featured-top">
+								<div class="featured-author">
+									<span class="featured-avatar">{(featuredPost.profiles?.full_name ?? '?')[0]?.toUpperCase()}</span>
+									<span class="featured-name">{featuredPost.profiles?.full_name ?? 'Anonymous Artist'}</span>
+								</div>
+								<span class="top-post-badge">Top post</span>
+							</div>
+							{#if featuredPost.tags?.length}
+								<div class="featured-tags">
+									{#each featuredPost.tags.slice(0, 2) as tag}
+										<span class="featured-tag">#{tag}</span>
+									{/each}
+								</div>
+							{/if}
+							<p class="featured-quote">{stripHtml(featuredPost.body) || (featuredPost.youtube_url ? 'YouTube video' : '')}</p>
+							<div class="featured-footer">
+								<span>{timeAgo(featuredPost.created_at)}</span>
+								<span class="featured-likes">
+									<svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></svg>
+									{data.likeCounts[featuredPost.id] ?? 0}
+								</span>
+							</div>
+						</div>
+						{#if featuredPost.post_media?.length}
+							<div class="featured-thumbs" class:single={featuredPost.post_media.length === 1}>
+								{#each featuredPost.post_media.slice(0, 2) as m}
+									<img src={m.url} alt="" />
+								{/each}
+							</div>
+						{/if}
+					</a>
+				{/if}
+				{#each restPosts as post (post.id)}
+					<PostCard {post} likeCount={data.likeCounts[post.id] ?? 0} showAuthor={true} />
+				{/each}
+			</div>
+		{/if}
 
 	<!-- LOCAL TAB -->
 	{:else if activeTab === 'local'}
-		<div class="tab-pane">
-			{#if !data.isSignedIn}
-				<div class="auth-prompt">
-					<p class="auth-prompt-text">Sign in to see posts from artists near you.</p>
-					<a href="/signin" class="auth-btn">Sign In</a>
-				</div>
-			{:else if !data.userHasLocation}
-				<div class="no-location-card">
-					<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="no-location-icon">
-						<path d="M20 10c0 6-8 13-8 13s-8-7-8-13a8 8 0 0 1 16 0Z" /><circle cx="12" cy="10" r="3" />
-					</svg>
-					<p class="no-location-title">No location set</p>
-					<p class="no-location-sub">Add your location in your profile to discover local artists and their posts.</p>
-					<a href="/profile" class="auth-btn">Go to Profile</a>
-				</div>
-			{:else}
-				<div class="local-controls">
-					<p class="tab-desc">Posts from artists within your area.</p>
-					<div class="radius-row">
-						<span class="radius-label">Radius:</span>
-						<select class="radius-select" bind:value={localRadius} onchange={handleRadiusChange} disabled={localLoading}>
-							{#each RADIUS_OPTIONS as r}
-								<option value={r}>{r} mi</option>
-							{/each}
-						</select>
-					</div>
-				</div>
-
-				{#if localLoading}
-					<div class="loading-state">
-						<svg class="spin" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
-							<path d="M12 2a10 10 0 0 1 10 10" />
-						</svg>
-						Loading…
-					</div>
-				{:else if localPosts === null}
-					<!-- not loaded yet (shouldn't show long) -->
-				{:else if localPosts.length === 0}
-					<div class="empty-state">
-						<span class="empty-icon">🗺️</span>
-						<p class="empty-title">No local posts</p>
-						<p class="empty-sub">No artists in your area have posted yet. Try increasing the radius.</p>
-					</div>
-				{:else}
-					<div class="feed">
-						{#each localPosts as post (post.id)}
-							<PostCard {post} likeCount={localLikeCounts[post.id] ?? 0} showAuthor={true} />
-						{/each}
-					</div>
-				{/if}
-			{/if}
-		</div>
+		{#if !data.isSignedIn}
+			<div class="auth-prompt">
+				<p class="auth-prompt-text">Sign in to see posts from artists near you.</p>
+				<a href="/signin" class="auth-btn">Sign In</a>
+			</div>
+		{:else if !data.userHasLocation}
+			<div class="no-location-card">
+				<span class="empty-icon-chip">
+					<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 13-8 13s-8-7-8-13a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
+				</span>
+				<h2 class="empty-title">No location set</h2>
+				<p class="empty-sub">Add your location in your profile to discover local artists and their posts.</p>
+				<a href="/profile" class="auth-btn">Go to Profile</a>
+			</div>
+		{:else if localLoading}
+			<div class="loading-state">
+				<svg class="spin" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 2a10 10 0 0 1 10 10"/></svg>
+				Loading…
+			</div>
+		{:else if localPosts !== null && localPosts.length === 0}
+			<div class="empty-state">
+				<span class="empty-icon-chip">
+					<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 13-8 13s-8-7-8-13a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
+				</span>
+				<h2 class="empty-title">No local posts</h2>
+				<p class="empty-sub">No artists in your area have posted yet. Try increasing the radius.</p>
+			</div>
+		{:else if localPosts !== null}
+			<div class="feed">
+				{#each localPosts as post (post.id)}
+					<PostCard {post} likeCount={localLikeCounts[post.id] ?? 0} showAuthor={true} />
+				{/each}
+			</div>
+		{/if}
 
 	<!-- FOLLOWING TAB -->
 	{:else if activeTab === 'following'}
-		<div class="tab-pane">
-			{#if !data.isSignedIn}
-				<div class="auth-prompt">
-					<p class="auth-prompt-text">Sign in to see posts from people you follow.</p>
-					<a href="/signin" class="auth-btn">Sign In</a>
-				</div>
-			{:else}
-				<div class="following-controls">
-					<p class="tab-desc">Posts from people you follow.</p>
-					<label class="toggle-row">
-						<div class="toggle-switch" class:on={includeFollowers} onclick={handleToggleFollowers} role="switch" aria-checked={includeFollowers} tabindex="0" onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleToggleFollowers(); } }}>
-							<div class="toggle-thumb"></div>
-						</div>
-						<span class="toggle-label">Also show followers you don't follow back</span>
-					</label>
-				</div>
-
-				{#if followingLoading}
-					<div class="loading-state">
-						<svg class="spin" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
-							<path d="M12 2a10 10 0 0 1 10 10" />
-						</svg>
-						Loading…
-					</div>
-				{:else if followingPosts === null}
-					<!-- not yet loaded -->
-				{:else if followingPosts.length === 0}
-					<div class="empty-state">
-						<span class="empty-icon">👥</span>
-						<p class="empty-title">Nothing here yet</p>
-						<p class="empty-sub">
-							{#if includeFollowers}
-								Neither you nor your followers have posted anything.
-							{:else}
-								Follow some artists to see their posts here.
-							{/if}
-						</p>
-					</div>
-				{:else}
-					<div class="feed">
-						{#each followingPosts as post (post.id)}
-							<PostCard {post} likeCount={followingLikeCounts[post.id] ?? 0} showAuthor={true} />
-						{/each}
-					</div>
-				{/if}
-			{/if}
-		</div>
+		{#if !data.isSignedIn}
+			<div class="auth-prompt">
+				<p class="auth-prompt-text">Sign in to see posts from people you follow.</p>
+				<a href="/signin" class="auth-btn">Sign In</a>
+			</div>
+		{:else if followingLoading}
+			<div class="loading-state">
+				<svg class="spin" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 2a10 10 0 0 1 10 10"/></svg>
+				Loading…
+			</div>
+		{:else if followingPosts !== null && followingPosts.length === 0}
+			<div class="empty-state">
+				<span class="empty-icon-chip">
+					<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+				</span>
+				<h2 class="empty-title">Nothing here yet</h2>
+				<p class="empty-sub">
+					{includeFollowers ? "Neither you nor your followers have posted anything." : 'Follow some artists to see their posts here.'}
+				</p>
+			</div>
+		{:else if followingPosts !== null}
+			<div class="feed">
+				{#each followingPosts as post (post.id)}
+					<PostCard {post} likeCount={followingLikeCounts[post.id] ?? 0} showAuthor={true} />
+				{/each}
+			</div>
+		{/if}
 	{/if}
 </div>
 
@@ -248,75 +273,100 @@
 		margin: 0 auto;
 		display: flex;
 		flex-direction: column;
-		gap: 20px;
+		gap: 28px;
 	}
 
 	/* Header */
-	.page-header {
-		background: var(--color-surface);
-		border: 1px solid var(--color-border);
-		border-radius: var(--radius-lg);
-		padding: 20px 24px 0;
-		box-shadow: var(--shadow-sm);
+	.page-header-row {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: flex-end;
+		justify-content: space-between;
+		gap: 24px;
 	}
 
-	.page-title-row {
+	.page-heading {
+		position: relative;
 		display: flex;
+		flex-direction: column;
+		gap: 14px;
+	}
+
+	.deco-ring-a {
+		position: absolute;
+		right: 60px;
+		top: -110px;
+		width: 240px;
+		height: 240px;
+		border-radius: 50%;
+		border: 1px solid var(--color-border-strong);
+		pointer-events: none;
+		z-index: -1;
+	}
+
+	.deco-ring-b {
+		position: absolute;
+		right: 100px;
+		top: -60px;
+		width: 150px;
+		height: 150px;
+		border-radius: 50%;
+		border: 1px solid var(--color-lilac);
+		pointer-events: none;
+		z-index: -1;
+	}
+
+	.page-heading h1 {
+		margin: 0;
+		font-size: clamp(2.25rem, 7vw, 3.5rem);
+		line-height: 0.98;
+		letter-spacing: -0.035em;
+	}
+
+	.tab-desc {
+		font-size: 1rem;
+		color: var(--color-text-muted);
+		margin: 0;
+	}
+
+	.new-post-btn {
+		height: 56px;
+		padding: 0 28px;
+		flex-shrink: 0;
+	}
+
+	/* Tabs row */
+	.tabs-row {
+		display: flex;
+		flex-wrap: wrap;
 		align-items: center;
 		justify-content: space-between;
-		margin-bottom: 16px;
+		gap: 16px;
 	}
 
-	.page-title {
-		font-size: 1.4rem;
-		font-weight: 700;
-		letter-spacing: -0.4px;
-		margin-bottom: 0;
-	}
-
-	.create-post-btn {
-		display: flex;
-		align-items: center;
-		gap: 6px;
-		background: var(--color-primary);
-		color: white;
-		border: none;
-		border-radius: var(--radius-sm);
-		padding: 7px 16px;
-		font-size: 0.85rem;
-		font-weight: 600;
-		text-decoration: none;
-		cursor: pointer;
-		transition: background 0.15s;
-	}
-
-	.create-post-btn:hover {
-		background: var(--color-primary-dark);
-	}
-
-	/* Tabs */
-	.tabs {
-		display: flex;
-		border-top: 1px solid var(--color-border);
-		margin: 0 -24px;
+	.tab-group {
+		display: inline-flex;
+		gap: 4px;
+		padding: 5px;
+		border-radius: var(--radius-pill);
+		background: var(--color-surface);
+		border: 1px solid var(--color-border);
 	}
 
 	.tab-btn {
-		flex: 1;
-		display: flex;
+		display: inline-flex;
 		align-items: center;
-		justify-content: center;
-		gap: 6px;
-		padding: 12px 16px;
-		background: none;
+		gap: 8px;
+		height: 44px;
+		padding: 0 20px;
 		border: none;
-		border-bottom: 2px solid transparent;
-		font-size: 0.875rem;
-		font-weight: 500;
-		color: var(--color-text-muted);
+		border-radius: var(--radius-pill);
+		background: transparent;
+		color: var(--color-text-strong);
+		font-size: 0.9rem;
+		font-weight: 600;
 		cursor: pointer;
-		transition: color 0.15s, border-color 0.15s;
-		margin-bottom: -1px;
+		transition: background 0.15s, color 0.15s;
 	}
 
 	.tab-btn:hover {
@@ -324,68 +374,33 @@
 	}
 
 	.tab-btn.active {
-		color: var(--color-primary);
-		border-bottom-color: var(--color-primary);
-		font-weight: 600;
-	}
-
-	/* Tab pane */
-	.tab-pane {
-		display: flex;
-		flex-direction: column;
-		gap: 16px;
-	}
-
-	.tab-desc {
-		font-size: 0.85rem;
-		color: var(--color-text-muted);
-		margin: 0;
-	}
-
-	/* Feed */
-	.feed {
-		display: flex;
-		flex-direction: column;
-		gap: 10px;
-	}
-
-	/* Local controls */
-	.local-controls {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		gap: 12px;
-		flex-wrap: wrap;
+		background: var(--color-ink);
+		color: var(--color-cream);
 	}
 
 	.radius-row {
 		display: flex;
 		align-items: center;
-		gap: 8px;
-		flex-shrink: 0;
+		gap: 10px;
 	}
 
 	.radius-label {
-		font-size: 0.82rem;
+		font-size: 0.875rem;
+		font-weight: 600;
 		color: var(--color-text-muted);
-		font-weight: 500;
 	}
 
 	.radius-select {
-		padding: 6px 10px;
-		border: 1.5px solid var(--color-border);
-		border-radius: var(--radius-sm);
-		font-size: 0.82rem;
-		background: var(--color-bg);
-		color: var(--color-text);
-		outline: none;
+		height: 44px;
+		padding: 0 16px;
+		border-radius: var(--radius-pill);
+		border: 1px solid var(--color-border-strong);
+		background: var(--color-surface);
 		font-family: inherit;
+		font-size: 0.9rem;
+		font-weight: 600;
+		color: var(--color-text);
 		cursor: pointer;
-		transition: border-color 0.15s, opacity 0.15s;
-	}
-
-	.radius-select:focus {
-		border-color: var(--color-primary);
 	}
 
 	.radius-select:disabled {
@@ -393,60 +408,177 @@
 		cursor: default;
 	}
 
-	/* Following controls */
-	.following-controls {
+	.follow-switch {
+		display: inline-flex;
+		align-items: center;
+		gap: 12px;
+		height: 44px;
+		padding: 0 18px 0 8px;
+		border-radius: var(--radius-pill);
+		border: 1px solid var(--color-border-strong);
+		background: var(--color-surface);
+		font-size: 0.9rem;
+		font-weight: 600;
+		color: var(--color-text);
+		cursor: pointer;
+	}
+
+	.switch-track {
+		position: relative;
+		width: 44px;
+		height: 28px;
+		border-radius: var(--radius-pill);
+		background: var(--color-border-strong);
+		transition: background 0.15s;
+		flex-shrink: 0;
+	}
+
+	.switch-track.on {
+		background: var(--color-primary);
+	}
+
+	.switch-thumb {
+		position: absolute;
+		top: 3px;
+		left: 3px;
+		width: 22px;
+		height: 22px;
+		border-radius: 50%;
+		background: white;
+		box-shadow: 0 2px 4px rgba(23, 8, 47, 0.25);
+		transition: left 0.15s;
+	}
+
+	.switch-track.on .switch-thumb {
+		left: 19px;
+	}
+
+	/* Feed — single column, Twitter-style scroll */
+	.feed {
+		display: flex;
+		flex-direction: column;
+		gap: 16px;
+	}
+
+	/* Featured card */
+	.featured-card {
+		display: flex;
+		flex-direction: column;
+		gap: 24px;
+		padding: 32px;
+		border-radius: var(--radius-card-lg);
+		background: var(--color-ink);
+		color: var(--color-cream);
+		text-decoration: none;
+	}
+
+	.featured-text {
+		display: flex;
+		flex-direction: column;
+		gap: 18px;
+	}
+
+	.featured-top {
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
 		gap: 12px;
-		flex-wrap: wrap;
 	}
 
-	/* Toggle switch */
-	.toggle-row {
+	.featured-author {
 		display: flex;
 		align-items: center;
-		gap: 10px;
-		cursor: pointer;
-		flex-shrink: 0;
+		gap: 12px;
 	}
 
-	.toggle-switch {
-		width: 36px;
-		height: 20px;
-		border-radius: 10px;
-		background: var(--color-border);
-		position: relative;
-		transition: background 0.2s;
-		cursor: pointer;
-		flex-shrink: 0;
-	}
-
-	.toggle-switch.on {
-		background: var(--color-primary);
-	}
-
-	.toggle-thumb {
-		position: absolute;
-		top: 2px;
-		left: 2px;
-		width: 16px;
-		height: 16px;
+	.featured-avatar {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: 44px;
+		height: 44px;
 		border-radius: 50%;
-		background: white;
-		box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
-		transition: left 0.2s;
+		background: var(--color-primary-bright);
+		color: white;
+		font-weight: 700;
+		font-size: 1.05rem;
+		flex-shrink: 0;
 	}
 
-	.toggle-switch.on .toggle-thumb {
-		left: 18px;
+	.featured-name {
+		font-size: 1rem;
+		font-weight: 700;
 	}
 
-	.toggle-label {
-		font-size: 0.82rem;
-		color: var(--color-text-muted);
-		font-weight: 500;
-		cursor: pointer;
+	.top-post-badge {
+		padding: 6px 12px;
+		border-radius: var(--radius-pill);
+		background: rgba(196, 181, 253, 0.16);
+		border: 1px solid rgba(196, 181, 253, 0.3);
+		color: var(--color-lilac-soft);
+		font-size: 0.75rem;
+		font-weight: 700;
+		letter-spacing: 0.08em;
+		text-transform: uppercase;
+		flex-shrink: 0;
+	}
+
+	.featured-tags {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 8px;
+	}
+
+	.featured-tag {
+		padding: 5px 12px;
+		border-radius: var(--radius-pill);
+		background: rgba(255, 255, 255, 0.1);
+		color: var(--color-lilac-soft);
+		font-size: 0.8125rem;
+		font-weight: 600;
+	}
+
+	.featured-quote {
+		margin: 0;
+		font-family: var(--font-display);
+		font-weight: 700;
+		font-size: clamp(1.25rem, 2.6vw, 1.6rem);
+		line-height: 1.25;
+		letter-spacing: -0.015em;
+	}
+
+	.featured-footer {
+		display: flex;
+		align-items: center;
+		gap: 18px;
+		font-size: 0.875rem;
+		font-weight: 600;
+		color: var(--color-lilac-soft);
+	}
+
+	.featured-likes {
+		display: inline-flex;
+		align-items: center;
+		gap: 6px;
+		color: var(--color-lilac-soft);
+	}
+
+	.featured-thumbs {
+		display: grid;
+		grid-template-columns: repeat(2, 1fr);
+		gap: 12px;
+	}
+
+	.featured-thumbs.single {
+		grid-template-columns: 1fr;
+	}
+
+	.featured-thumbs img {
+		width: 100%;
+		aspect-ratio: 1 / 1;
+		border-radius: 20px;
+		object-fit: cover;
+		display: block;
 	}
 
 	/* Loading */
@@ -469,13 +601,13 @@
 		to { transform: rotate(360deg); }
 	}
 
-	/* No location */
+	/* No location / auth prompt */
 	.no-location-card,
 	.auth-prompt {
 		background: var(--color-surface);
 		border: 1px solid var(--color-border);
-		border-radius: var(--radius-lg);
-		padding: 48px 32px;
+		border-radius: var(--radius-card);
+		padding: 56px 32px;
 		display: flex;
 		flex-direction: column;
 		align-items: center;
@@ -484,41 +616,33 @@
 		box-shadow: var(--shadow-sm);
 	}
 
-	.no-location-icon {
-		color: var(--color-text-muted);
-		opacity: 0.6;
-		margin-bottom: 4px;
-	}
-
-	.no-location-title,
 	.auth-prompt-text {
-		font-size: 1rem;
-		font-weight: 600;
-		margin: 0;
-	}
-
-	.no-location-sub {
-		font-size: 0.875rem;
-		color: var(--color-text-muted);
-		max-width: 320px;
-		line-height: 1.5;
+		font-family: var(--font-display);
+		font-size: 1.1rem;
+		font-weight: 800;
 		margin: 0;
 	}
 
 	.auth-btn {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		min-height: 44px;
 		margin-top: 8px;
-		padding: 9px 24px;
+		padding: 0 24px;
 		background: var(--color-primary);
 		color: white;
-		border-radius: var(--radius-sm);
+		border-radius: var(--radius-pill);
 		font-size: 0.875rem;
-		font-weight: 600;
+		font-weight: 700;
 		text-decoration: none;
-		transition: background 0.15s;
+		box-shadow: var(--shadow-btn);
+		transition: background 0.15s, transform 0.15s;
 	}
 
 	.auth-btn:hover {
 		background: var(--color-primary-dark);
+		transform: translateY(-2px);
 	}
 
 	/* Empty state */
@@ -526,31 +650,44 @@
 		display: flex;
 		flex-direction: column;
 		align-items: center;
-		gap: 8px;
-		padding: 56px 20px;
+		gap: 14px;
+		padding: 64px 20px;
 		text-align: center;
-		background: var(--color-surface);
-		border: 1px solid var(--color-border);
-		border-radius: var(--radius-lg);
-		box-shadow: var(--shadow-sm);
+		background: rgba(255, 255, 255, 0.55);
+		border: 2px dashed var(--color-border-strong);
+		border-radius: var(--radius-card-lg);
 	}
 
-	.empty-icon {
-		font-size: 2rem;
-		margin-bottom: 4px;
+	.empty-icon-chip {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: 72px;
+		height: 72px;
+		border-radius: 24px;
+		background: var(--color-primary-light);
+		color: var(--color-primary);
 	}
 
 	.empty-title {
-		font-size: 1rem;
-		font-weight: 600;
+		font-family: var(--font-display);
+		font-size: 1.75rem;
+		font-weight: 800;
+		letter-spacing: -0.02em;
 		margin: 0;
 	}
 
 	.empty-sub {
-		font-size: 0.875rem;
+		font-size: 1rem;
 		color: var(--color-text-muted);
-		max-width: 320px;
+		max-width: 420px;
 		line-height: 1.5;
 		margin: 0;
+	}
+
+	@media (max-width: 600px) {
+		.deco-ring-a, .deco-ring-b {
+			display: none;
+		}
 	}
 </style>

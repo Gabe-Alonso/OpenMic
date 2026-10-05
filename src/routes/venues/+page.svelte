@@ -283,13 +283,13 @@
 					const props = e.features[0].properties;
 					const coords = (e.features[0].geometry as any).coordinates.slice();
 					const popupHtml = `
-						<strong style="font-size:0.875rem;font-weight:600;display:block;">${props.name}</strong>
-						${props.location ? `<span style="font-size:0.78rem;color:#71717a;display:block;margin:2px 0 8px;">${props.location}</span>` : '<div style="margin-bottom:8px;"></div>'}
+						<strong style="font-family:'DM Sans',system-ui,sans-serif;font-size:0.9rem;font-weight:700;display:block;color:#17082f;">${props.name}</strong>
+						${props.location ? `<span style="font-family:'DM Sans',system-ui,sans-serif;font-size:0.78rem;color:#5b4f78;display:block;margin:2px 0 8px;">${props.location}</span>` : '<div style="margin-bottom:8px;"></div>'}
 						${props._source === 'registered'
-							? `<a href="/profile/${props.id}" style="font-size:0.8rem;color:#7c3aed;font-weight:500;text-decoration:none;">View Profile →</a>`
+							? `<a href="/profile/${props.id}" style="font-family:'DM Sans',system-ui,sans-serif;font-size:0.8rem;color:#4c1d95;font-weight:700;text-decoration:none;">View Profile →</a>`
 							: props.claimed_profile_id
-								? `<span style="font-size:0.78rem;color:#16a34a;font-weight:600;">✓ Claimed</span>`
-								: `<a href="/venues/${props.id}/claim" style="font-size:0.8rem;color:#7c3aed;font-weight:500;text-decoration:none;">Claim this venue →</a>`
+								? `<span style="font-family:'DM Sans',system-ui,sans-serif;font-size:0.78rem;color:#16a34a;font-weight:700;">✓ Claimed</span>`
+								: `<a href="/venues/${props.id}/claim" style="font-family:'DM Sans',system-ui,sans-serif;font-size:0.8rem;color:#4c1d95;font-weight:700;text-decoration:none;">Claim this venue →</a>`
 						}
 					`;
 					new mapboxgl.Popup({ offset: 15, closeButton: false })
@@ -325,7 +325,21 @@
 </script>
 
 <div class="venues-page">
-	<div class="map-panel" bind:this={mapContainer}></div>
+	<div class="map-wrap">
+		<div class="map-panel" bind:this={mapContainer}></div>
+		<div class="zoom-controls">
+			<button class="zoom-btn" type="button" aria-label="Zoom in" onclick={() => map?.zoomIn()}>
+				<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+			</button>
+			<button class="zoom-btn" type="button" aria-label="Zoom out" onclick={() => map?.zoomOut()}>
+				<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M5 12h14"/></svg>
+			</button>
+		</div>
+		<div class="map-legend">
+			<span class="legend-row"><span class="legend-dot legend-dot-claimed"></span>Registered or claimed</span>
+			<span class="legend-row"><span class="legend-dot legend-dot-unclaimed"></span>Unclaimed</span>
+		</div>
+	</div>
 
 	<div class="list-panel">
 		<div class="search-section">
@@ -448,7 +462,10 @@
 							<div class="venue-info">
 								<div class="venue-name-row">
 									<p class="venue-name">{venue.full_name ?? 'Unnamed Venue'}</p>
-									<span class="badge registered-badge">Registered</span>
+									<span class="badge claimed-badge">
+										<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+										Claimed
+									</span>
 								</div>
 								{#if venue.location}
 									<p class="venue-location">{venue.location}</p>
@@ -481,7 +498,10 @@
 								<div class="venue-name-row">
 									<p class="venue-name">{venue.name}</p>
 									{#if venue.claimed_profile_id}
-										<span class="badge claimed-badge">Claimed</span>
+										<span class="badge claimed-badge">
+											<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+											Claimed
+										</span>
 									{/if}
 								</div>
 								{#if venue.address || venue.city}
@@ -520,9 +540,90 @@
 		overflow: hidden;
 	}
 
-	.map-panel {
+	.map-wrap {
+		position: relative;
 		flex: 1;
 		min-width: 0;
+	}
+
+	.map-panel {
+		width: 100%;
+		height: 100%;
+	}
+
+	.zoom-controls {
+		position: absolute;
+		top: 18px;
+		right: 18px;
+		z-index: 5;
+		display: flex;
+		flex-direction: column;
+		border-radius: 16px;
+		overflow: hidden;
+		background: var(--color-surface);
+		box-shadow: 0 8px 20px rgba(23, 8, 47, 0.18);
+	}
+
+	.zoom-btn {
+		width: 44px;
+		height: 44px;
+		border: none;
+		background: none;
+		color: var(--color-ink);
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		cursor: pointer;
+		transition: background 0.12s;
+	}
+
+	.zoom-btn:first-child {
+		border-bottom: 1px solid var(--color-border);
+	}
+
+	.zoom-btn:hover {
+		background: var(--color-primary-light);
+	}
+
+	.map-legend {
+		position: absolute;
+		left: 18px;
+		bottom: 18px;
+		z-index: 5;
+		display: flex;
+		flex-direction: column;
+		gap: 8px;
+		padding: 12px 16px;
+		border-radius: 16px;
+		background: var(--color-surface);
+		box-shadow: 0 8px 20px rgba(23, 8, 47, 0.18);
+		font-size: 0.8125rem;
+		font-weight: 600;
+		color: var(--color-text-strong);
+	}
+
+	.legend-row {
+		display: flex;
+		align-items: center;
+		gap: 10px;
+	}
+
+	.legend-dot {
+		width: 14px;
+		height: 14px;
+		border-radius: 50%;
+		flex-shrink: 0;
+	}
+
+	.legend-dot-claimed {
+		background: var(--color-primary-bright);
+		border: 2px solid white;
+		box-shadow: 0 0 0 1px var(--color-primary-bright);
+	}
+
+	.legend-dot-unclaimed {
+		background: var(--color-cream);
+		border: 2px solid var(--color-primary-bright);
 	}
 
 	.list-panel {
@@ -566,19 +667,19 @@
 
 	.search-input {
 		width: 100%;
-		padding: 9px 32px 9px 34px;
+		padding: 11px 32px 11px 34px;
 		border: 1.5px solid var(--color-border);
-		border-radius: var(--radius-sm);
+		border-radius: var(--radius-pill);
 		font-size: 0.875rem;
-		background: var(--color-bg);
+		background: var(--color-surface-tint);
 		color: var(--color-text);
 		outline: none;
 		font-family: inherit;
-		transition: border-color 0.15s;
+		transition: border-color 0.15s, box-shadow 0.15s;
 		box-sizing: border-box;
 	}
 
-	.search-input:focus { border-color: var(--color-primary); background: var(--color-surface); }
+	.search-input:focus { border-color: var(--color-primary); background: var(--color-surface); box-shadow: 0 0 0 3px rgba(167, 139, 250, 0.35); }
 	.search-input::placeholder { color: var(--color-text-muted); opacity: 0.7; }
 
 	.clear-btn {
@@ -601,46 +702,48 @@
 
 	.search-dropdown {
 		position: absolute;
-		top: calc(100% + 4px);
+		top: calc(100% + 6px);
 		left: 0;
 		right: 0;
 		background: var(--color-surface);
-		border: 1.5px solid var(--color-border);
-		border-radius: var(--radius-sm);
-		box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+		border: 1px solid var(--color-border);
+		border-radius: var(--radius-input);
+		box-shadow: var(--shadow-card-hover);
 		z-index: 200;
 		list-style: none;
 		margin: 0;
-		padding: 4px;
+		padding: 6px;
 	}
 
 	.search-dropdown li { list-style: none; }
 
 	.search-dropdown button {
 		width: 100%;
+		min-height: 44px;
 		text-align: left;
 		background: none;
 		border: none;
-		padding: 8px 12px;
-		border-radius: calc(var(--radius-sm) - 2px);
+		padding: 8px 14px;
+		border-radius: var(--radius-md);
 		cursor: pointer;
 		display: flex;
 		flex-direction: column;
+		justify-content: center;
 		gap: 1px;
 		transition: background 0.1s;
 	}
 
-	.search-dropdown button:hover { background: var(--color-bg); }
+	.search-dropdown button:hover { background: var(--color-primary-light); }
 
 	.place-name { font-size: 0.85rem; font-weight: 500; color: var(--color-text); }
 	.place-detail { font-size: 0.75rem; color: var(--color-text-muted); }
 
 	.radius-select {
-		padding: 9px 10px;
+		padding: 9px 12px;
 		border: 1.5px solid var(--color-border);
-		border-radius: var(--radius-sm);
+		border-radius: var(--radius-pill);
 		font-size: 0.875rem;
-		background: var(--color-bg);
+		background: var(--color-surface-tint);
 		color: var(--color-text);
 		outline: none;
 		font-family: inherit;
@@ -683,7 +786,7 @@
 	}
 
 	.claimed-toggle input:checked ~ .toggle-track {
-		background: var(--color-primary);
+		background: var(--color-primary-bright);
 	}
 
 	.toggle-thumb {
@@ -713,19 +816,19 @@
 		display: flex;
 		align-items: center;
 		gap: 6px;
-		padding: 7px 12px;
-		border-radius: var(--radius-sm);
+		padding: 7px 14px;
+		border-radius: var(--radius-pill);
 		background: var(--color-primary-light);
-		border: 1px solid var(--color-primary);
-		color: var(--color-primary);
+		border: 1px solid var(--color-primary-bright);
+		color: var(--color-primary-deep);
 		font-size: 0.8rem;
-		font-weight: 600;
+		font-weight: 700;
 		cursor: pointer;
 		transition: background 0.12s;
 		white-space: nowrap;
 	}
 
-	.import-btn:hover:not(:disabled) { background: #ede9fe; }
+	.import-btn:hover:not(:disabled) { background: var(--color-lilac-soft); }
 	.import-btn:disabled { opacity: 0.6; cursor: default; }
 
 	.import-msg {
@@ -735,16 +838,14 @@
 
 	/* List header */
 	.list-header {
-		padding: 16px 20px 12px;
+		padding: 18px 20px 14px;
 		background: var(--color-surface);
 		border-bottom: 1px solid var(--color-border);
 		flex-shrink: 0;
 	}
 
 	.list-header h1 {
-		font-size: 1.2rem;
-		font-weight: 700;
-		letter-spacing: -0.3px;
+		font-size: 1.25rem;
 	}
 
 	.list-header p {
@@ -765,26 +866,27 @@
 	/* Venue cards */
 	.venue-card {
 		display: flex;
-		gap: 12px;
-		padding: 14px;
-		border-radius: var(--radius-md);
+		gap: 14px;
+		padding: 16px;
+		border-radius: 22px;
 		border: 1.5px solid var(--color-border);
 		background: var(--color-surface);
 		text-decoration: none;
 		color: var(--color-text);
-		transition: border-color 0.15s, box-shadow 0.15s;
+		transition: border-color 0.15s, box-shadow 0.15s, transform 0.15s;
 	}
 
 	.venue-card:hover,
 	.venue-card.active {
-		border-color: var(--color-primary);
-		box-shadow: 0 0 0 3px var(--color-primary-light);
+		border-color: var(--color-lilac);
+		box-shadow: var(--shadow-card-hover);
+		transform: translateY(-2px);
 	}
 
 	.venue-avatar {
-		width: 48px;
-		height: 48px;
-		border-radius: 50%;
+		width: 56px;
+		height: 56px;
+		border-radius: 18px;
 		flex-shrink: 0;
 		display: flex;
 		align-items: center;
@@ -793,7 +895,7 @@
 	}
 
 	.registered-avatar {
-		background: var(--color-primary);
+		background: var(--color-primary-deep);
 	}
 
 	.registered-avatar img {
@@ -804,14 +906,14 @@
 
 	.registered-avatar span {
 		color: white;
-		font-weight: 700;
-		font-size: 1.1rem;
+		font-family: var(--font-display);
+		font-weight: 800;
+		font-size: 1.375rem;
 	}
 
 	.seeded-avatar {
-		background: var(--color-bg);
-		border: 1.5px solid var(--color-border);
-		color: var(--color-text-muted);
+		background: var(--color-primary-light);
+		color: var(--color-primary-deep);
 	}
 
 	.venue-info {
@@ -835,21 +937,20 @@
 	}
 
 	.badge {
+		display: inline-flex;
+		align-items: center;
+		gap: 4px;
 		font-size: 0.68rem;
 		font-weight: 700;
 		border-radius: 999px;
-		padding: 2px 8px;
+		padding: 3px 10px 3px 8px;
 		white-space: nowrap;
-	}
-
-	.registered-badge {
-		background: var(--color-primary-light);
-		color: var(--color-primary);
+		flex-shrink: 0;
 	}
 
 	.claimed-badge {
-		background: #dcfce7;
-		color: #16a34a;
+		background: var(--color-ink);
+		color: var(--color-cream);
 	}
 
 	.venue-location {
@@ -878,17 +979,17 @@
 	.venue-type {
 		font-size: 0.72rem;
 		font-weight: 600;
-		color: var(--color-text-muted);
-		background: var(--color-bg);
-		border: 1px solid var(--color-border);
+		color: var(--color-text-strong);
+		background: var(--color-primary-light);
+		border: 1px solid var(--color-lilac);
 		border-radius: 999px;
-		padding: 2px 8px;
+		padding: 3px 10px;
 		text-transform: capitalize;
 	}
 
 	.venue-website {
 		font-size: 0.78rem;
-		color: var(--color-primary);
+		color: var(--color-primary-dark);
 		text-decoration: none;
 		white-space: nowrap;
 		overflow: hidden;
@@ -912,21 +1013,23 @@
 	.venue-tag {
 		font-size: 0.72rem;
 		font-weight: 600;
-		color: var(--color-primary);
+		color: var(--color-primary-deep);
 		background: var(--color-primary-light);
 		border-radius: 999px;
 		padding: 2px 8px;
 	}
 
 	.claim-btn {
-		display: inline-block;
+		display: inline-flex;
+		align-items: center;
+		min-height: 32px;
 		margin-top: 6px;
-		padding: 5px 12px;
-		border-radius: var(--radius-sm);
+		padding: 0 14px;
+		border-radius: var(--radius-pill);
 		background: var(--color-primary);
 		color: white;
 		font-size: 0.78rem;
-		font-weight: 600;
+		font-weight: 700;
 		text-decoration: none;
 		transition: background 0.12s;
 		align-self: flex-start;
@@ -939,19 +1042,20 @@
 		display: flex;
 		flex-direction: column;
 		align-items: center;
-		gap: 6px;
+		gap: 8px;
 		padding: 48px 20px;
 		text-align: center;
 	}
 
 	.empty-icon { font-size: 2rem; margin-bottom: 4px; }
-	.empty-title { font-size: 0.95rem; font-weight: 600; }
+	.empty-title { font-family: var(--font-display); font-size: 1rem; font-weight: 800; }
 	.empty-sub { font-size: 0.8rem; color: var(--color-text-muted); line-height: 1.5; max-width: 260px; }
 
 	:global(.mapboxgl-popup-content) {
-		border-radius: 10px !important;
+		border-radius: 18px !important;
 		padding: 14px 16px !important;
-		box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12) !important;
+		box-shadow: var(--shadow-card-hover) !important;
+		border: 1px solid var(--color-border-soft);
 		min-width: 150px;
 	}
 
@@ -967,7 +1071,7 @@
 			margin: -16px -12px;
 		}
 
-		.map-panel {
+		.map-wrap {
 			height: 50vh;
 			flex: none;
 		}

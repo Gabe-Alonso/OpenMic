@@ -422,6 +422,7 @@
 
 	{#if showComments}
 		<div class="comments-section">
+			<h2 class="comments-heading">Comments</h2>
 			<!-- Add comment form -->
 			<form class="comment-form" onsubmit={submitComment}>
 				<textarea
@@ -605,7 +606,7 @@
 		gap: 0;
 		background: var(--color-surface);
 		border: 1px solid var(--color-border);
-		border-radius: var(--radius-lg);
+		border-radius: 32px;
 		overflow: hidden;
 		box-shadow: var(--shadow-sm);
 	}
@@ -614,7 +615,7 @@
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
-		padding: 16px 20px;
+		padding: 28px 32px;
 	}
 
 	.author-link {
@@ -626,8 +627,8 @@
 	}
 
 	.author-avatar {
-		width: 44px;
-		height: 44px;
+		width: 68px;
+		height: 68px;
 		border-radius: 50%;
 		overflow: hidden;
 		flex-shrink: 0;
@@ -642,10 +643,11 @@
 	.avatar-initial {
 		width: 100%;
 		height: 100%;
-		background: var(--color-primary);
+		background: var(--color-primary-deep);
 		color: white;
-		font-weight: 700;
-		font-size: 1.1rem;
+		font-family: var(--font-display);
+		font-weight: 800;
+		font-size: 1.75rem;
 		display: flex;
 		align-items: center;
 		justify-content: center;
@@ -665,8 +667,10 @@
 	}
 
 	.author-name {
-		font-weight: 600;
-		font-size: 0.95rem;
+		font-family: var(--font-display);
+		font-weight: 800;
+		font-size: 1.625rem;
+		letter-spacing: -0.02em;
 		transition: color 0.15s;
 		flex-shrink: 0;
 	}
@@ -744,7 +748,7 @@
 	.mutual-initial {
 		width: 100%;
 		height: 100%;
-		background: var(--color-primary);
+		background: var(--color-primary-bright);
 		color: white;
 		font-size: 0.55rem;
 		font-weight: 700;
@@ -763,9 +767,9 @@
 		display: flex;
 		background: var(--color-surface);
 		border: 1px solid var(--color-border);
-		border-radius: var(--radius-lg);
+		border-radius: var(--radius-card-lg);
 		overflow: hidden;
-		box-shadow: var(--shadow-sm);
+		box-shadow: 0 20px 50px rgba(76, 29, 149, 0.08);
 		min-height: 480px;
 	}
 
@@ -870,8 +874,8 @@
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		width: 36px;
-		height: 36px;
+		width: 48px;
+		height: 48px;
 		border-radius: 50%;
 		border: none;
 		background: none;
@@ -929,19 +933,20 @@
 		gap: 6px;
 		margin-left: auto;
 		background: none;
-		border: 1.5px solid var(--color-border);
-		border-radius: var(--radius-sm);
+		border: 1.5px solid var(--color-border-strong);
+		border-radius: var(--radius-pill);
 		padding: 7px 14px;
 		font-size: 0.8rem;
-		font-weight: 500;
+		font-weight: 600;
 		color: var(--color-text-muted);
 		cursor: pointer;
 		transition: border-color 0.15s, color 0.15s, background 0.15s;
 	}
 
 	.share-btn:hover {
-		border-color: var(--color-primary);
-		color: var(--color-primary);
+		border-color: var(--color-lilac);
+		color: var(--color-primary-deep);
+		background: var(--color-primary-light);
 	}
 
 	.share-btn.share-copied {
@@ -965,8 +970,8 @@
 	.modal {
 		background: var(--color-surface);
 		border: 1px solid var(--color-border);
-		border-radius: var(--radius-lg);
-		box-shadow: var(--shadow-md);
+		border-radius: 32px;
+		box-shadow: var(--shadow-card-hover);
 		width: 100%;
 		max-width: 360px;
 		max-height: 70vh;
@@ -1046,7 +1051,7 @@
 	.liker-initial {
 		width: 100%;
 		height: 100%;
-		background: var(--color-primary);
+		background: var(--color-primary-bright);
 		color: white;
 		font-weight: 700;
 		font-size: 0.95rem;
@@ -1071,8 +1076,8 @@
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		width: 36px;
-		height: 36px;
+		width: 48px;
+		height: 48px;
 		border-radius: 50%;
 		border: none;
 		background: none;
@@ -1083,7 +1088,7 @@
 
 	.comment-btn:hover,
 	.comment-btn.active {
-		color: var(--color-primary);
+		color: var(--color-primary-deep);
 		background: var(--color-primary-light);
 	}
 
@@ -1099,9 +1104,18 @@
 	.comments-section {
 		background: var(--color-surface);
 		border: 1px solid var(--color-border);
-		border-radius: var(--radius-lg);
+		border-radius: var(--radius-card-lg);
 		box-shadow: var(--shadow-sm);
 		overflow: hidden;
+	}
+
+	.comments-heading {
+		font-family: var(--font-display);
+		font-weight: 800;
+		font-size: 1.625rem;
+		letter-spacing: -0.02em;
+		margin: 0;
+		padding: 24px 20px 0;
 	}
 
 	.comment-form {
@@ -1114,22 +1128,23 @@
 
 	.comment-input {
 		flex: 1;
-		padding: 9px 12px;
+		padding: 9px 14px;
 		border: 1.5px solid var(--color-border);
-		border-radius: var(--radius-sm);
+		border-radius: var(--radius-md);
 		font-size: 0.875rem;
 		font-family: inherit;
 		color: var(--color-text);
-		background: var(--color-bg);
+		background: var(--color-surface-tint);
 		resize: vertical;
 		outline: none;
-		transition: border-color 0.15s;
+		transition: border-color 0.15s, box-shadow 0.15s;
 		line-height: 1.5;
 	}
 
 	.comment-input:focus {
 		border-color: var(--color-primary);
 		background: var(--color-surface);
+		box-shadow: 0 0 0 3px rgba(167, 139, 250, 0.35);
 	}
 
 	.comment-input::placeholder {
@@ -1142,9 +1157,9 @@
 		background: var(--color-primary);
 		color: white;
 		border: none;
-		border-radius: var(--radius-sm);
+		border-radius: var(--radius-pill);
 		font-size: 0.875rem;
-		font-weight: 600;
+		font-weight: 700;
 		cursor: pointer;
 		transition: background 0.15s, opacity 0.15s;
 		flex-shrink: 0;
@@ -1189,7 +1204,7 @@
 		height: 36px;
 		border-radius: 50%;
 		flex-shrink: 0;
-		background: var(--color-primary);
+		background: var(--color-primary-bright);
 		display: flex;
 		align-items: center;
 		justify-content: center;
@@ -1241,7 +1256,7 @@
 	}
 
 	.comment-author:hover {
-		color: var(--color-primary);
+		color: var(--color-primary-dark);
 	}
 
 	.comment-time {
@@ -1298,7 +1313,7 @@
 		overflow: hidden;
 		border: 1.5px solid #f43f5e;
 		flex-shrink: 0;
-		background: var(--color-primary);
+		background: var(--color-primary-bright);
 		display: flex;
 		align-items: center;
 		justify-content: center;
@@ -1330,7 +1345,7 @@
 	}
 
 	.reply-btn:hover {
-		color: var(--color-primary);
+		color: var(--color-primary-deep);
 		background: var(--color-primary-light);
 	}
 
@@ -1355,7 +1370,7 @@
 	.reply-cancel {
 		background: none;
 		border: 1.5px solid var(--color-border);
-		border-radius: var(--radius-sm);
+		border-radius: var(--radius-pill);
 		padding: 6px 14px;
 		font-size: 0.82rem;
 		font-weight: 600;
@@ -1397,8 +1412,8 @@
 	.tag-pill {
 		display: inline-flex;
 		align-items: center;
-		background: var(--color-primary-light, #f0f0ff);
-		color: var(--color-primary);
+		background: var(--color-primary-light);
+		color: var(--color-primary-deep);
 		border-radius: 999px;
 		padding: 3px 12px;
 		font-size: 0.78rem;
@@ -1424,41 +1439,41 @@
 	.edit-post-btn {
 		display: flex;
 		align-items: center;
-		gap: 5px;
-		background: none;
+		justify-content: center;
+		width: 44px;
+		height: 44px;
+		background: var(--color-surface);
 		border: 1.5px solid var(--color-border);
-		border-radius: var(--radius-sm);
-		padding: 7px 14px;
-		font-size: 0.8rem;
-		font-weight: 500;
-		color: var(--color-text-muted);
+		border-radius: 50%;
+		color: var(--color-text-strong);
 		cursor: pointer;
-		transition: border-color 0.15s, color 0.15s;
+		transition: border-color 0.15s, color 0.15s, background 0.15s;
 	}
 
 	.edit-post-btn:hover {
-		border-color: var(--color-primary);
-		color: var(--color-primary);
+		border-color: var(--color-lilac);
+		color: var(--color-primary-deep);
+		background: var(--color-primary-light);
 	}
 
 	.delete-post-btn {
 		display: flex;
 		align-items: center;
-		gap: 5px;
-		background: none;
-		border: 1.5px solid var(--color-border);
-		border-radius: var(--radius-sm);
-		padding: 7px 14px;
-		font-size: 0.8rem;
-		font-weight: 500;
-		color: var(--color-text-muted);
+		justify-content: center;
+		width: 44px;
+		height: 44px;
+		background: var(--color-surface);
+		border: 1.5px solid var(--color-danger-border);
+		border-radius: 50%;
+		color: var(--color-danger);
 		cursor: pointer;
-		transition: border-color 0.15s, color 0.15s;
+		transition: border-color 0.15s, color 0.15s, background 0.15s;
 	}
 
 	.delete-post-btn:hover {
-		border-color: #ef4444;
-		color: #ef4444;
+		border-color: var(--color-danger-border);
+		color: var(--color-danger);
+		background: var(--color-danger-bg);
 	}
 
 	.delete-confirm-text {
@@ -1468,19 +1483,19 @@
 	}
 
 	.delete-confirm-btn {
-		background: #ef4444;
+		background: var(--color-danger);
 		color: white;
 		border: none;
-		border-radius: var(--radius-sm);
+		border-radius: var(--radius-pill);
 		padding: 7px 14px;
 		font-size: 0.8rem;
-		font-weight: 600;
+		font-weight: 700;
 		cursor: pointer;
 		transition: background 0.15s, opacity 0.15s;
 	}
 
 	.delete-confirm-btn:hover:not(:disabled) {
-		background: #dc2626;
+		background: #932017;
 	}
 
 	.delete-confirm-btn:disabled {
@@ -1491,10 +1506,10 @@
 	.delete-cancel-btn {
 		background: none;
 		border: 1.5px solid var(--color-border);
-		border-radius: var(--radius-sm);
+		border-radius: var(--radius-pill);
 		padding: 7px 12px;
 		font-size: 0.8rem;
-		font-weight: 500;
+		font-weight: 600;
 		color: var(--color-text-muted);
 		cursor: pointer;
 		transition: border-color 0.15s, color 0.15s;
@@ -1514,10 +1529,10 @@
 	}
 
 	.edit-error {
-		background: #fef2f2;
-		color: #dc2626;
-		border: 1px solid #fecaca;
-		border-radius: var(--radius-sm);
+		background: var(--color-danger-bg);
+		color: var(--color-danger);
+		border: 1px solid var(--color-danger-border);
+		border-radius: var(--radius-md);
 		padding: 8px 12px;
 		font-size: 0.82rem;
 	}
@@ -1531,7 +1546,7 @@
 	.edit-cancel {
 		background: none;
 		border: 1.5px solid var(--color-border);
-		border-radius: var(--radius-sm);
+		border-radius: var(--radius-pill);
 		padding: 7px 16px;
 		font-size: 0.82rem;
 		font-weight: 600;
@@ -1549,10 +1564,10 @@
 		background: var(--color-primary);
 		color: white;
 		border: none;
-		border-radius: var(--radius-sm);
+		border-radius: var(--radius-pill);
 		padding: 7px 20px;
 		font-size: 0.82rem;
-		font-weight: 600;
+		font-weight: 700;
 		cursor: pointer;
 		transition: background 0.15s, opacity 0.15s;
 	}

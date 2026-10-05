@@ -2,7 +2,6 @@
 	import { onMount, onDestroy } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
-	import favicon from '$lib/assets/favicon.svg';
 	import type { LayoutData } from './$types';
 	import type { User } from '@supabase/supabase-js';
 	import { createBrowserClient } from '@supabase/ssr';
@@ -10,6 +9,13 @@
 	import '../app.css';
 
 	let { children, data }: { children: any; data: LayoutData } = $props();
+
+	const navLinks = [
+		{ href: '/community', label: 'Community', match: (p: string) => p.startsWith('/community') || p.startsWith('/tags') || p.startsWith('/post') },
+		{ href: '/artists', label: 'Artists', match: (p: string) => p.startsWith('/artists') },
+		{ href: '/venues', label: 'Venues', match: (p: string) => p.startsWith('/venues') },
+		{ href: '/about', label: 'About', match: (p: string) => p.startsWith('/about') }
+	];
 
 	// Live unread count — initialised from server, updated by Realtime
 	let liveUnreadCount = $state(data.unreadCount ?? 0);
@@ -106,128 +112,151 @@
 	}
 </script>
 
-<svelte:head>
-	<link rel="icon" href={favicon} />
-</svelte:head>
+{#snippet searchResultsList()}
+	{#if searchLoading}
+		<p class="search-status">Searching…</p>
+	{:else if searchResults.profiles.length === 0 && searchResults.posts.length === 0}
+		<p class="search-status">No results for "{searchQuery}"</p>
+	{:else}
+		{#if searchResults.profiles.length > 0}
+			<div class="result-section">
+				<p class="result-label">People</p>
+				{#each searchResults.profiles as p (p.id)}
+					<a href="/profile/{p.id}" class="result-item" onclick={selectResult}>
+						<div class="result-avatar">
+							{#if p.avatar_url}
+								<img src={p.avatar_url} alt={p.full_name ?? ''} />
+							{:else}
+								{(p.full_name ?? '?')[0]?.toUpperCase()}
+							{/if}
+						</div>
+						<div class="result-text">
+							<div class="result-name-row">
+								<span class="result-name">{p.full_name ?? 'Unknown'}</span>
+								{#if p.profile_type}
+									<span class="result-type-badge">{p.profile_type}</span>
+								{/if}
+							</div>
+							{#if p.location}<p class="result-sub">{p.location}</p>{/if}
+						</div>
+					</a>
+				{/each}
+			</div>
+		{/if}
+
+		{#if searchResults.profiles.length > 0 && searchResults.posts.length > 0}
+			<div class="result-divider"></div>
+		{/if}
+
+		{#if searchResults.posts.length > 0}
+			<div class="result-section">
+				<p class="result-label">Posts</p>
+				{#each searchResults.posts as post (post.id)}
+					<a href="/community" class="result-item" onclick={selectResult}>
+						<div class="result-avatar">
+							{#if post.author?.avatar_url}
+								<img src={post.author.avatar_url} alt={post.author?.full_name ?? ''} />
+							{:else}
+								{(post.author?.full_name ?? '?')[0]?.toUpperCase()}
+							{/if}
+						</div>
+						<div class="result-text">
+							{#if post.tags?.length}
+								<div class="result-tags">
+									{#each post.tags as t}
+										<span class="result-tag">#{t}</span>
+									{/each}
+								</div>
+							{/if}
+							<p class="result-content">{post.content}</p>
+						</div>
+					</a>
+				{/each}
+			</div>
+		{/if}
+	{/if}
+{/snippet}
+
+{#snippet accountActions(mobile: boolean)}
+	{#if data.user}
+		<p class="account-name">{getDisplayName(data.user)}</p>
+		<p class="account-email">{data.user.email}</p>
+		<a href="/profile" class="account-link" onclick={() => { if (mobile) menuOpen = false; profileMenuOpen = false; }}>View Profile</a>
+		<form method="POST" action="/signout">
+			<button type="submit" class="account-signout-btn">Sign Out</button>
+		</form>
+	{:else}
+		<a href="/signin" class="btn btn-outline account-btn" onclick={() => menuOpen = false}>Sign In</a>
+		<a href="/signup" class="btn btn-cream account-btn" onclick={() => menuOpen = false}>Sign Up</a>
+	{/if}
+{/snippet}
 
 <div class="app">
 	<div class="header-wrap">
-		<header>
-			<nav class="nav-left">
-				<a href="/" class="logo">OpenMic</a>
+		<header class="nav-pill">
+			<div class="nav-left">
+				<a href="/" class="logo">
+					<span class="logo-tile" aria-hidden="true">
+						<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+							<path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3Z" />
+							<path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+							<line x1="12" y1="19" x2="12" y2="23" />
+							<line x1="8" y1="23" x2="16" y2="23" />
+						</svg>
+					</span>
+					<span class="logo-word">OpenMic</span>
+				</a>
 				<div class="nav-links">
-					<a href="/community">Community</a>
-					<a href="/artists">Artists</a>
-					<a href="/venues">Venues</a>
-					<a href="/about">About</a>
+					{#each navLinks as link}
+						{@const isActive = link.match($page.url.pathname)}
+						<a href={link.href} class:active={isActive} aria-current={isActive ? 'page' : undefined}>{link.label}</a>
+					{/each}
 				</div>
+			</div>
+
+			<div class="nav-right">
 				<!-- Search -->
 				<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
 				<div class="search-wrap" role="search" onfocusout={handleSearchFocusOut}>
-			<div class="search-input-row">
-				<svg class="search-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-					<circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
-				</svg>
-				<input
-					class="search-input"
-					type="search"
-					placeholder="Search artists, venues, #tags…"
-					bind:value={searchQuery}
-					oninput={handleSearchInput}
-					onkeydown={(e) => { if (e.key === 'Escape') { showResults = false; searchQuery = ''; } }}
-					autocomplete="off"
-				/>
-				{#if searchQuery}
-					<button class="search-clear" onclick={() => { searchQuery = ''; showResults = false; }} aria-label="Clear search">
-						<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
-					</button>
-				{/if}
-			</div>
-
-			{#if showResults}
-				<div class="search-dropdown">
-					{#if searchLoading}
-						<p class="search-status">Searching…</p>
-					{:else if searchResults.profiles.length === 0 && searchResults.posts.length === 0}
-						<p class="search-status">No results for "{searchQuery}"</p>
-					{:else}
-						{#if searchResults.profiles.length > 0}
-							<div class="result-section">
-								<p class="result-label">People</p>
-								{#each searchResults.profiles as p (p.id)}
-									<a href="/profile/{p.id}" class="result-item" onclick={selectResult}>
-										<div class="result-avatar">
-											{#if p.avatar_url}
-												<img src={p.avatar_url} alt={p.full_name ?? ''} />
-											{:else}
-												{(p.full_name ?? '?')[0]?.toUpperCase()}
-											{/if}
-										</div>
-										<div class="result-text">
-											<div class="result-name-row">
-												<span class="result-name">{p.full_name ?? 'Unknown'}</span>
-												{#if p.profile_type}
-													<span class="result-type-badge">{p.profile_type}</span>
-												{/if}
-											</div>
-											{#if p.location}<p class="result-sub">{p.location}</p>{/if}
-										</div>
-									</a>
-								{/each}
-							</div>
+					<div class="search-input-row">
+						<svg class="search-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+							<circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+						</svg>
+						<input
+							class="search-input"
+							type="search"
+							placeholder="Search artists, venues, #tags…"
+							bind:value={searchQuery}
+							oninput={handleSearchInput}
+							onkeydown={(e) => { if (e.key === 'Escape') { showResults = false; searchQuery = ''; } }}
+							autocomplete="off"
+						/>
+						{#if searchQuery}
+							<button class="search-clear" onclick={() => { searchQuery = ''; showResults = false; }} aria-label="Clear search">
+								<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+							</button>
 						{/if}
+					</div>
 
-						{#if searchResults.profiles.length > 0 && searchResults.posts.length > 0}
-							<div class="result-divider"></div>
-						{/if}
-
-						{#if searchResults.posts.length > 0}
-							<div class="result-section">
-								<p class="result-label">Posts</p>
-								{#each searchResults.posts as post (post.id)}
-									<a href="/community" class="result-item" onclick={selectResult}>
-										<div class="result-avatar">
-											{#if post.author?.avatar_url}
-												<img src={post.author.avatar_url} alt={post.author?.full_name ?? ''} />
-											{:else}
-												{(post.author?.full_name ?? '?')[0]?.toUpperCase()}
-											{/if}
-										</div>
-										<div class="result-text">
-											{#if post.tags?.length}
-												<div class="result-tags">
-													{#each post.tags as t}
-														<span class="result-tag">#{t}</span>
-													{/each}
-												</div>
-											{/if}
-											<p class="result-content">{post.content}</p>
-										</div>
-									</a>
-								{/each}
-							</div>
-						{/if}
+					{#if showResults}
+						<div class="search-dropdown">
+							{@render searchResultsList()}
+						</div>
 					{/if}
 				</div>
-			{/if}
-		</div>
-			</nav>
 
-		<div class="nav-right">
 				{#if data.user}
-				<a href="/messages" class="envelope-btn" aria-label="Messages">
-					<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-						<path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
-						<polyline points="22,6 12,13 2,6"/>
-					</svg>
-					{#if liveUnreadCount > 0}
-						<span class="unread-dot"></span>
-					{/if}
-				</a>
-				{/if}
-				<div class="profile-wrapper" class:open={profileMenuOpen}>
-					{#if data.user}
-						<button class="profile-btn avatar-btn" aria-label="Profile" onclick={handleProfileClick}>
+					<a href="/messages" class="icon-btn" aria-label="Messages">
+						<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+							<path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+							<polyline points="22,6 12,13 2,6"/>
+						</svg>
+						{#if liveUnreadCount > 0}
+							<span class="unread-dot"></span>
+						{/if}
+					</a>
+					<div class="profile-wrapper" class:open={profileMenuOpen}>
+						<button class="icon-btn avatar-btn" aria-label="Profile" onclick={handleProfileClick}>
 							{#if data.avatarUrl}
 								<img src={data.avatarUrl} alt="Profile" class="nav-avatar" />
 							{:else}
@@ -235,38 +264,23 @@
 							{/if}
 						</button>
 						<div class="profile-dropdown">
-							<p class="dropdown-name">{getDisplayName(data.user)}</p>
-							<p class="dropdown-email">{data.user.email}</p>
-							<div class="dropdown-divider"></div>
-							<a href="/profile" class="dropdown-link" onclick={() => profileMenuOpen = false}>View Profile</a>
-							<form method="POST" action="/signout">
-								<button type="submit" class="dropdown-signout-btn">Sign Out</button>
-							</form>
+							{@render accountActions(false)}
 						</div>
-					{:else}
-						<button class="profile-btn" aria-label="Profile">
-							<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-								<circle cx="12" cy="8" r="4" />
-								<path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" />
-							</svg>
-						</button>
-						<div class="profile-dropdown">
-							<p class="dropdown-title">Not signed in</p>
-							<p class="dropdown-sub">Sign in to connect with artists and venues.</p>
-							<a href="/signin" class="dropdown-signin-btn">Sign In</a>
-						</div>
-					{/if}
-				</div>
-
-			<!-- Hamburger (mobile only) -->
-			<button class="hamburger-btn" onclick={() => menuOpen = !menuOpen} aria-label="Menu" aria-expanded={menuOpen}>
-				{#if menuOpen}
-					<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+					</div>
 				{:else}
-					<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M3 12h18M3 6h18M3 18h18"/></svg>
+					<a href="/signin" class="signin-link">Sign in</a>
+					<a href="/signup" class="signup-pill">Sign up</a>
 				{/if}
-			</button>
-		</div>
+
+				<!-- Hamburger (mobile only) -->
+				<button class="icon-btn hamburger-btn" onclick={() => menuOpen = !menuOpen} aria-label="Menu" aria-expanded={menuOpen}>
+					{#if menuOpen}
+						<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+					{:else}
+						<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M3 12h18M3 6h18M3 18h18"/></svg>
+					{/if}
+				</button>
+			</div>
 		</header>
 
 		{#if menuOpen}
@@ -296,75 +310,21 @@
 
 					{#if showResults}
 						<div class="mobile-search-results">
-							{#if searchLoading}
-								<p class="search-status">Searching…</p>
-							{:else if searchResults.profiles.length === 0 && searchResults.posts.length === 0}
-								<p class="search-status">No results for "{searchQuery}"</p>
-							{:else}
-								{#if searchResults.profiles.length > 0}
-									<div class="result-section">
-										<p class="result-label">People</p>
-										{#each searchResults.profiles as p (p.id)}
-											<a href="/profile/{p.id}" class="result-item" onclick={selectResult}>
-												<div class="result-avatar">
-													{#if p.avatar_url}
-														<img src={p.avatar_url} alt={p.full_name ?? ''} />
-													{:else}
-														{(p.full_name ?? '?')[0]?.toUpperCase()}
-													{/if}
-												</div>
-												<div class="result-text">
-													<div class="result-name-row">
-														<span class="result-name">{p.full_name ?? 'Unknown'}</span>
-														{#if p.profile_type}
-															<span class="result-type-badge">{p.profile_type}</span>
-														{/if}
-													</div>
-													{#if p.location}<p class="result-sub">{p.location}</p>{/if}
-												</div>
-											</a>
-										{/each}
-									</div>
-								{/if}
-								{#if searchResults.profiles.length > 0 && searchResults.posts.length > 0}
-									<div class="result-divider"></div>
-								{/if}
-								{#if searchResults.posts.length > 0}
-									<div class="result-section">
-										<p class="result-label">Posts</p>
-										{#each searchResults.posts as post (post.id)}
-											<a href="/community" class="result-item" onclick={selectResult}>
-												<div class="result-avatar">
-													{#if post.author?.avatar_url}
-														<img src={post.author.avatar_url} alt={post.author?.full_name ?? ''} />
-													{:else}
-														{(post.author?.full_name ?? '?')[0]?.toUpperCase()}
-													{/if}
-												</div>
-												<div class="result-text">
-													{#if post.tags?.length}
-														<div class="result-tags">
-															{#each post.tags as t}
-																<span class="result-tag">#{t}</span>
-															{/each}
-														</div>
-													{/if}
-													<p class="result-content">{post.content}</p>
-												</div>
-											</a>
-										{/each}
-									</div>
-								{/if}
-							{/if}
+							{@render searchResultsList()}
 						</div>
 					{/if}
 				</div>
 
 				<div class="mobile-nav-divider"></div>
-				<a href="/community" onclick={() => menuOpen = false}>Community</a>
-				<a href="/artists" onclick={() => menuOpen = false}>Artists</a>
-				<a href="/venues" onclick={() => menuOpen = false}>Venues</a>
-				<a href="/about" onclick={() => menuOpen = false}>About</a>
+				{#each navLinks as link}
+					{@const isActive = link.match($page.url.pathname)}
+					<a href={link.href} class:active={isActive} aria-current={isActive ? 'page' : undefined} onclick={() => menuOpen = false}>{link.label}</a>
+				{/each}
+
+				<div class="mobile-nav-divider"></div>
+				<div class="mobile-account">
+					{@render accountActions(true)}
+				</div>
 			</nav>
 		{/if}
 	</div>
@@ -372,254 +332,112 @@
 	<main>
 		{@render children()}
 	</main>
+
+	<footer>
+		<a href="/" class="footer-logo">OpenMic</a>
+		<div class="footer-links">
+			{#each navLinks as link}
+				<a href={link.href}>{link.label}</a>
+			{/each}
+		</div>
+	</footer>
 </div>
 
 <style>
 	.app {
 		min-height: 100vh;
+		display: flex;
+		flex-direction: column;
 	}
 
 	.header-wrap {
-		padding: 16px 20px 0;
+		padding: 20px 24px 0;
 		position: sticky;
 		top: 0;
 		z-index: 100;
 	}
 
-	header {
+	.nav-pill {
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
-		background: var(--color-surface);
-		border-radius: var(--radius-lg);
-		padding: 12px 20px;
-		box-shadow: var(--shadow-md);
-		border: 1px solid var(--color-border);
+		max-width: 1200px;
+		margin: 0 auto;
+		background: var(--color-panel);
+		border-radius: var(--radius-pill);
+		padding: 10px 10px 10px 20px;
+		border: 1px solid rgba(255, 255, 255, 0.12);
 	}
 
 	.nav-left {
 		display: flex;
 		align-items: center;
-		gap: 24px;
+		gap: 28px;
+		min-width: 0;
 	}
 
 	.logo {
-		font-size: 1.15rem;
-		font-weight: 700;
-		color: var(--color-primary);
-		letter-spacing: -0.4px;
+		display: flex;
+		align-items: center;
+		gap: 10px;
+		flex-shrink: 0;
+	}
+
+	.logo-tile {
+		width: 34px;
+		height: 34px;
+		border-radius: 10px;
+		background: var(--color-cream);
+		color: var(--color-ink);
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		transform: rotate(-6deg);
+		flex-shrink: 0;
+	}
+
+	.logo-word {
+		font-family: var(--font-display);
+		font-weight: 800;
+		font-size: 1.2rem;
+		color: #fff;
+		letter-spacing: -0.02em;
 	}
 
 	.nav-links {
 		display: flex;
+		align-items: center;
 		gap: 2px;
 	}
 
 	.nav-links a {
+		display: inline-flex;
+		align-items: center;
+		min-height: 44px;
 		font-size: 0.875rem;
 		font-weight: 500;
-		color: var(--color-text-muted);
-		padding: 6px 12px;
-		border-radius: var(--radius-sm);
+		color: #cfc3f0;
+		padding: 0 16px;
+		border-radius: var(--radius-pill);
 		transition: background 0.15s, color 0.15s;
 	}
 
 	.nav-links a:hover {
-		background: var(--color-primary-light);
-		color: var(--color-primary);
+		background: rgba(255, 255, 255, 0.1);
+		color: #fff;
 	}
 
-	/* Profile */
+	.nav-links a.active {
+		background: rgba(255, 255, 255, 0.12);
+		color: #fff;
+		font-weight: 600;
+	}
+
 	.nav-right {
 		display: flex;
 		align-items: center;
 		gap: 8px;
-	}
-
-	.envelope-btn {
-		position: relative;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		width: 38px;
-		height: 38px;
-		border-radius: 50%;
-		background: var(--color-bg);
-		border: 1.5px solid var(--color-border);
-		color: var(--color-text-muted);
-		transition: background 0.15s, border-color 0.15s, color 0.15s;
-	}
-
-	.envelope-btn:hover {
-		background: var(--color-primary-light);
-		border-color: var(--color-primary);
-		color: var(--color-primary);
-	}
-
-	.unread-dot {
-		position: absolute;
-		top: 1px;
-		right: 1px;
-		width: 9px;
-		height: 9px;
-		background: #ef4444;
-		border-radius: 50%;
-		border: 1.5px solid var(--color-surface);
-	}
-
-	.profile-wrapper {
-		position: relative;
-	}
-
-	.profile-btn {
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		width: 38px;
-		height: 38px;
-		border-radius: 50%;
-		background: var(--color-bg);
-		border: 1.5px solid var(--color-border);
-		color: var(--color-text-muted);
-		transition: background 0.15s, border-color 0.15s, color 0.15s;
-	}
-
-	.profile-btn:hover {
-		background: var(--color-primary-light);
-		border-color: var(--color-primary);
-		color: var(--color-primary);
-	}
-
-	.avatar-btn {
-		background: var(--color-primary);
-		border-color: var(--color-primary);
-		color: white;
-		font-weight: 700;
-		font-size: 0.9rem;
-		overflow: hidden;
-		padding: 0;
-	}
-
-	.nav-avatar {
-		width: 100%;
-		height: 100%;
-		object-fit: cover;
-		border-radius: 50%;
-	}
-
-	.avatar-btn:hover {
-		background: var(--color-primary-dark);
-		border-color: var(--color-primary-dark);
-		color: white;
-	}
-
-	.profile-dropdown {
-		display: flex;
-		flex-direction: column;
-		gap: 8px;
-		position: absolute;
-		right: 0;
-		top: calc(100% + 10px);
-		background: var(--color-surface);
-		border: 1px solid var(--color-border);
-		border-radius: var(--radius-md);
-		box-shadow: var(--shadow-md);
-		padding: 16px;
-		width: 220px;
-		z-index: 200;
-		visibility: hidden;
-		opacity: 0;
-		pointer-events: none;
-		transition: opacity 0.15s, visibility 0s linear 0.15s, pointer-events 0s linear 0.15s;
-	}
-
-	.profile-wrapper.open .profile-dropdown {
-		visibility: visible;
-		opacity: 1;
-		pointer-events: auto;
-		transition: opacity 0.15s, visibility 0s, pointer-events 0s;
-	}
-
-	/* Signed-out dropdown */
-	.dropdown-title {
-		font-weight: 600;
-		font-size: 0.875rem;
-	}
-
-	.dropdown-sub {
-		font-size: 0.8rem;
-		color: var(--color-text-muted);
-		line-height: 1.45;
-	}
-
-	.dropdown-signin-btn {
-		display: block;
-		text-align: center;
-		background: var(--color-primary);
-		color: white;
-		padding: 8px 16px;
-		border-radius: var(--radius-sm);
-		font-size: 0.875rem;
-		font-weight: 600;
-		transition: background 0.15s;
-	}
-
-	.dropdown-signin-btn:hover {
-		background: var(--color-primary-dark);
-	}
-
-	/* Signed-in dropdown */
-	.dropdown-name {
-		font-weight: 600;
-		font-size: 0.9rem;
-	}
-
-	.dropdown-email {
-		font-size: 0.78rem;
-		color: var(--color-text-muted);
-		overflow: hidden;
-		text-overflow: ellipsis;
-		white-space: nowrap;
-	}
-
-	.dropdown-divider {
-		height: 1px;
-		background: var(--color-border);
-		margin: 2px 0;
-	}
-
-	.dropdown-link {
-		font-size: 0.875rem;
-		font-weight: 500;
-		color: var(--color-text);
-		padding: 6px 8px;
-		border-radius: var(--radius-sm);
-		transition: background 0.15s;
-	}
-
-	.dropdown-link:hover {
-		background: var(--color-bg);
-	}
-
-	.dropdown-signout-btn {
-		width: 100%;
-		text-align: left;
-		background: none;
-		border: none;
-		font-size: 0.875rem;
-		font-weight: 500;
-		color: #dc2626;
-		padding: 6px 8px;
-		border-radius: var(--radius-sm);
-		transition: background 0.15s;
-	}
-
-	.dropdown-signout-btn:hover {
-		background: #fef2f2;
-	}
-
-	main {
-		padding: 28px 20px;
+		flex-shrink: 0;
 	}
 
 	/* Search */
@@ -632,20 +450,20 @@
 		display: flex;
 		align-items: center;
 		gap: 7px;
-		background: var(--color-bg);
-		border: 1.5px solid var(--color-border);
-		border-radius: var(--radius-sm);
-		padding: 7px 10px;
+		background: rgba(255, 255, 255, 0.08);
+		border: 1.5px solid rgba(255, 255, 255, 0.14);
+		border-radius: var(--radius-pill);
+		padding: 9px 14px;
 		transition: border-color 0.15s, background 0.15s;
 	}
 
 	.search-input-row:focus-within {
-		border-color: var(--color-primary);
-		background: var(--color-surface);
+		border-color: var(--color-lilac);
+		background: rgba(255, 255, 255, 0.12);
 	}
 
 	.search-icon {
-		color: var(--color-text-muted);
+		color: #cfc3f0;
 		flex-shrink: 0;
 	}
 
@@ -654,18 +472,17 @@
 		border: none;
 		background: none;
 		font-size: 0.85rem;
-		color: var(--color-text);
+		color: #fff;
 		outline: none;
 		font-family: inherit;
 		min-width: 0;
 	}
 
 	.search-input::placeholder {
-		color: var(--color-text-muted);
-		opacity: 0.7;
+		color: #cfc3f0;
+		opacity: 0.8;
 	}
 
-	/* hide browser's built-in clear button */
 	.search-input::-webkit-search-cancel-button { display: none; }
 
 	.search-clear {
@@ -673,7 +490,7 @@
 		border: none;
 		padding: 0;
 		cursor: pointer;
-		color: var(--color-text-muted);
+		color: #cfc3f0;
 		display: flex;
 		align-items: center;
 		flex-shrink: 0;
@@ -681,18 +498,18 @@
 	}
 
 	.search-clear:hover {
-		color: var(--color-text);
+		color: #fff;
 	}
 
 	.search-dropdown {
 		position: absolute;
-		top: calc(100% + 8px);
+		top: calc(100% + 10px);
 		left: 0;
-		right: 0;
+		right: -60px;
 		background: var(--color-surface);
-		border: 1px solid var(--color-border);
-		border-radius: var(--radius-md);
-		box-shadow: var(--shadow-md);
+		border: 1px solid var(--color-border-soft);
+		border-radius: var(--radius-card);
+		box-shadow: var(--shadow-card-hover);
 		z-index: 300;
 		max-height: 420px;
 		overflow-y: auto;
@@ -731,7 +548,7 @@
 		width: 32px;
 		height: 32px;
 		border-radius: 50%;
-		background: var(--color-primary);
+		background: var(--color-primary-bright);
 		color: white;
 		font-size: 0.8rem;
 		font-weight: 700;
@@ -775,7 +592,7 @@
 		padding: 2px 6px;
 		border-radius: 999px;
 		background: var(--color-primary-light);
-		color: var(--color-primary);
+		color: var(--color-primary-deep);
 		font-weight: 600;
 		text-transform: capitalize;
 		flex-shrink: 0;
@@ -811,13 +628,14 @@
 		margin: 0;
 		display: -webkit-box;
 		-webkit-line-clamp: 2;
+		line-clamp: 2;
 		-webkit-box-orient: vertical;
 		overflow: hidden;
 	}
 
 	.result-divider {
 		height: 1px;
-		background: var(--color-border);
+		background: var(--color-border-soft);
 		margin: 2px 8px;
 	}
 
@@ -829,70 +647,269 @@
 		margin: 0;
 	}
 
-	/* Hamburger (hidden on desktop) */
-	.hamburger-btn {
+	/* Icon buttons (messages, avatar, generic profile, hamburger) */
+	button.hamburger-btn {
 		display: none;
+	}
+
+	.icon-btn {
+		position: relative;
+		display: flex;
 		align-items: center;
 		justify-content: center;
-		width: 38px;
-		height: 38px;
-		border-radius: var(--radius-sm);
-		background: none;
-		border: 1.5px solid var(--color-border);
-		color: var(--color-text-muted);
-		cursor: pointer;
+		width: 44px;
+		height: 44px;
+		border-radius: 50%;
+		background: rgba(255, 255, 255, 0.08);
+		border: 1.5px solid rgba(255, 255, 255, 0.14);
+		color: #cfc3f0;
 		flex-shrink: 0;
-		transition: background 0.15s, color 0.15s;
+		transition: background 0.15s, border-color 0.15s, color 0.15s;
 	}
 
-	.hamburger-btn:hover {
-		background: var(--color-primary-light);
-		color: var(--color-primary);
+	.icon-btn:hover {
+		background: rgba(255, 255, 255, 0.14);
+		color: #fff;
 	}
 
-	/* Mobile nav drawer (hidden on desktop) */
+	.unread-dot {
+		position: absolute;
+		top: 2px;
+		right: 2px;
+		width: 9px;
+		height: 9px;
+		background: #ef4444;
+		border-radius: 50%;
+		border: 1.5px solid var(--color-panel);
+	}
+
+	.profile-wrapper {
+		position: relative;
+	}
+
+	.avatar-btn {
+		background: var(--color-primary-bright);
+		border-color: var(--color-primary-bright);
+		color: white;
+		font-weight: 700;
+		font-size: 0.9rem;
+		overflow: hidden;
+		padding: 0;
+	}
+
+	.nav-avatar {
+		width: 100%;
+		height: 100%;
+		object-fit: cover;
+		border-radius: 50%;
+	}
+
+	.avatar-btn:hover {
+		background: var(--color-primary-dark);
+		border-color: var(--color-primary-dark);
+		color: white;
+	}
+
+	.profile-dropdown {
+		display: flex;
+		flex-direction: column;
+		gap: 8px;
+		position: absolute;
+		right: 0;
+		top: calc(100% + 10px);
+		background: var(--color-surface);
+		border: 1px solid var(--color-border-soft);
+		border-radius: var(--radius-md);
+		box-shadow: var(--shadow-card-hover);
+		padding: 16px;
+		width: 220px;
+		z-index: 200;
+		visibility: hidden;
+		opacity: 0;
+		pointer-events: none;
+		transition: opacity 0.15s, visibility 0s linear 0.15s, pointer-events 0s linear 0.15s;
+	}
+
+	.profile-wrapper.open .profile-dropdown {
+		visibility: visible;
+		opacity: 1;
+		pointer-events: auto;
+		transition: opacity 0.15s, visibility 0s, pointer-events 0s;
+	}
+
+	.account-name {
+		font-weight: 600;
+		font-size: 0.9rem;
+		color: var(--color-text);
+	}
+
+	.account-email {
+		font-size: 0.78rem;
+		color: var(--color-text-muted);
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	.account-link {
+		font-size: 0.875rem;
+		font-weight: 500;
+		color: var(--color-text);
+		padding: 8px;
+		border-radius: var(--radius-sm);
+		transition: background 0.15s;
+	}
+
+	.account-link:hover {
+		background: var(--color-bg);
+	}
+
+	.account-signout-btn {
+		width: 100%;
+		text-align: left;
+		background: none;
+		border: none;
+		font-size: 0.875rem;
+		font-weight: 500;
+		color: var(--color-danger);
+		padding: 8px;
+		border-radius: var(--radius-sm);
+		transition: background 0.15s;
+	}
+
+	.account-signout-btn:hover {
+		background: var(--color-danger-bg);
+	}
+
+	/* Signed-out nav actions */
+	.signin-link {
+		display: inline-flex;
+		align-items: center;
+		min-height: 44px;
+		padding: 0 14px;
+		font-size: 0.875rem;
+		font-weight: 600;
+		color: #cfc3f0;
+		border-radius: var(--radius-pill);
+		transition: color 0.15s;
+	}
+
+	.signin-link:hover {
+		color: #fff;
+	}
+
+	.signup-pill {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		min-height: 44px;
+		padding: 0 20px;
+		background: var(--color-cream);
+		color: var(--color-ink);
+		font-size: 0.875rem;
+		font-weight: 700;
+		border-radius: var(--radius-pill);
+		transition: background 0.15s, transform 0.15s;
+	}
+
+	.signup-pill:hover {
+		background: #fff;
+		transform: translateY(-1px);
+	}
+
+	/* Mobile nav drawer */
 	.mobile-nav {
 		display: none;
 	}
 
-	@media (max-width: 768px) {
+	main {
+		flex: 1;
+		padding: 28px 20px;
+	}
+
+	footer {
+		max-width: 1200px;
+		width: 100%;
+		margin: 0 auto;
+		padding: 32px 24px 40px;
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		flex-wrap: wrap;
+		gap: 16px;
+	}
+
+	.footer-logo {
+		font-family: var(--font-display);
+		font-weight: 800;
+		font-size: 1.1rem;
+		color: var(--color-primary-deep);
+		letter-spacing: -0.02em;
+	}
+
+	.footer-links {
+		display: flex;
+		gap: 24px;
+		flex-wrap: wrap;
+	}
+
+	.footer-links a {
+		font-size: 0.875rem;
+		font-weight: 500;
+		color: var(--color-text-muted);
+		transition: color 0.15s;
+	}
+
+	.footer-links a:hover {
+		color: var(--color-primary-dark);
+	}
+
+	@media (max-width: 860px) {
 		.nav-links {
 			display: none;
 		}
 
-		.hamburger-btn {
-			display: flex;
+		.search-wrap,
+		.signin-link,
+		.signup-pill {
+			display: none;
 		}
 
-		.search-wrap {
-			display: none;
+		button.hamburger-btn {
+			display: flex;
 		}
 
 		.mobile-nav {
 			display: flex;
 			flex-direction: column;
-			background: var(--color-surface);
-			border: 1px solid var(--color-border);
-			border-radius: var(--radius-lg);
-			margin-top: 8px;
-			padding: 8px;
+			background: var(--color-panel);
+			border-radius: var(--radius-card);
+			margin: 8px 0 0;
+			padding: 12px;
 			gap: 2px;
+			max-width: 1200px;
+			margin-left: auto;
+			margin-right: auto;
 			box-shadow: var(--shadow-md);
 		}
 
 		.mobile-nav a {
+			display: flex;
+			align-items: center;
+			min-height: 44px;
 			font-size: 0.925rem;
 			font-weight: 500;
-			color: var(--color-text-muted);
-			padding: 12px 16px;
+			color: #cfc3f0;
+			padding: 0 16px;
 			border-radius: var(--radius-sm);
 			transition: background 0.15s, color 0.15s;
 			text-decoration: none;
 		}
 
-		.mobile-nav a:hover {
-			background: var(--color-primary-light);
-			color: var(--color-primary);
+		.mobile-nav a:hover,
+		.mobile-nav a.active {
+			background: rgba(255, 255, 255, 0.1);
+			color: #fff;
 		}
 
 		.mobile-search {
@@ -901,18 +918,72 @@
 
 		.mobile-search-results {
 			margin-top: 6px;
-			border-top: 1px solid var(--color-border);
+			border-top: 1px solid rgba(255, 255, 255, 0.14);
 			padding-top: 4px;
+		}
+
+		.mobile-search-results :global(.result-label),
+		.mobile-search-results :global(.search-status) {
+			color: #cfc3f0;
+		}
+
+		.mobile-search-results :global(.result-item) {
+			color: #fff;
+		}
+
+		.mobile-search-results :global(.result-item:hover) {
+			background: rgba(255, 255, 255, 0.08);
 		}
 
 		.mobile-nav-divider {
 			height: 1px;
-			background: var(--color-border);
+			background: rgba(255, 255, 255, 0.14);
 			margin: 6px 8px;
+		}
+
+		.mobile-account {
+			display: flex;
+			flex-direction: column;
+			gap: 8px;
+			padding: 8px 16px 4px;
+		}
+
+		.mobile-account .account-name {
+			color: #fff;
+		}
+
+		.mobile-account .account-email {
+			color: #cfc3f0;
+		}
+
+		.mobile-account .account-link {
+			color: #fff;
+		}
+
+		.mobile-account .account-link:hover {
+			background: rgba(255, 255, 255, 0.1);
+		}
+
+		.mobile-account .account-signout-btn {
+			color: #f8b4ac;
+		}
+
+		.mobile-account .account-signout-btn:hover {
+			background: rgba(255, 255, 255, 0.1);
+		}
+
+		.mobile-account .account-btn {
+			width: 100%;
 		}
 
 		main {
 			padding: 16px 12px;
+		}
+
+		footer {
+			flex-direction: column;
+			text-align: center;
+			padding: 24px 20px 32px;
 		}
 	}
 </style>

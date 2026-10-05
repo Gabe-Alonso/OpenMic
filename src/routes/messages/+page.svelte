@@ -109,26 +109,27 @@
 <div class="messages-page">
 	<div class="page-header">
 		<div class="header-left">
-			<button class="compose-btn" aria-label="New conversation" onclick={() => (showNewChat = !showNewChat)}>
-				<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+			<p class="header-eyebrow">Inbox</p>
+			<h1>Messages</h1>
+		</div>
+		<div class="header-actions">
+			{#if pendingRequests.length > 0}
+				<button class="btn btn-outline requests-btn" onclick={() => (showRequests = !showRequests)}>
+					Message Requests
+					<span class="requests-count">{pendingRequests.length}</span>
+					<svg class="chevron" class:open={showRequests} width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+						<polyline points="6 9 12 15 18 9"/>
+					</svg>
+				</button>
+			{/if}
+			<button class="btn btn-primary new-message-btn" aria-expanded={showNewChat} onclick={() => (showNewChat = !showNewChat)}>
+				<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
 					<path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
 					<path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
 				</svg>
+				New message
 			</button>
-			<h1>Messages</h1>
 		</div>
-		{#if pendingRequests.length > 0}
-			<button class="requests-btn" onclick={() => (showRequests = !showRequests)}>
-				<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-					<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
-				</svg>
-				Message Requests
-				<span class="requests-count">{pendingRequests.length}</span>
-				<svg class="chevron" class:open={showRequests} width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-					<polyline points="6 9 12 15 18 9"/>
-				</svg>
-			</button>
-		{/if}
 	</div>
 
 	<!-- New chat picker panel -->
@@ -226,7 +227,7 @@
 						</div>
 					</a>
 					<button
-						class="accept-btn"
+						class="btn btn-cream accept-btn"
 						disabled={accepting === req.id}
 						onclick={() => acceptRequest(req.id)}
 					>
@@ -304,70 +305,56 @@
 
 	.page-header {
 		display: flex;
-		align-items: center;
+		flex-wrap: wrap;
+		align-items: flex-end;
 		justify-content: space-between;
-		gap: 12px;
+		gap: 16px;
 	}
 
-	.header-left {
-		display: flex;
-		align-items: center;
-		gap: 10px;
+	.header-eyebrow {
+		margin: 0 0 8px;
+		font-size: 0.8125rem;
+		font-weight: 700;
+		letter-spacing: 0.14em;
+		text-transform: uppercase;
+		color: var(--color-primary-bright);
 	}
 
 	h1 {
-		font-size: 1.5rem;
-		font-weight: 800;
-		letter-spacing: -0.4px;
+		margin: 0;
+		font-size: clamp(2.5rem, 6vw, 4rem);
+		line-height: 0.98;
+		letter-spacing: -0.035em;
 	}
 
-	.compose-btn {
+	.header-actions {
 		display: flex;
-		align-items: center;
-		justify-content: center;
-		width: 34px;
-		height: 34px;
-		border-radius: 50%;
-		background: var(--color-surface);
-		border: 1.5px solid var(--color-border);
-		color: var(--color-text-muted);
-		cursor: pointer;
-		transition: background 0.12s, border-color 0.12s, color 0.12s;
-		flex-shrink: 0;
+		flex-wrap: wrap;
+		gap: 10px;
 	}
 
-	.compose-btn:hover {
-		background: var(--color-primary-light);
-		border-color: var(--color-primary);
-		color: var(--color-primary);
+	.new-message-btn {
+		height: 52px;
+		padding: 0 26px;
 	}
 
 	.requests-btn {
-		display: flex;
-		align-items: center;
-		gap: 6px;
-		padding: 7px 12px;
-		border-radius: var(--radius-sm);
-		background: var(--color-primary-light);
-		border: 1px solid var(--color-primary);
-		color: var(--color-primary);
-		font-size: 0.8rem;
-		font-weight: 600;
-		cursor: pointer;
-		transition: background 0.12s;
-		white-space: nowrap;
-	}
-
-	.requests-btn:hover {
-		background: #ede9fe;
+		height: 52px;
+		padding: 0 22px;
+		gap: 10px;
 	}
 
 	.requests-count {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		min-width: 24px;
+		height: 24px;
+		padding: 0 7px;
 		background: var(--color-primary);
 		color: white;
 		border-radius: 999px;
-		padding: 1px 6px;
-		font-size: 0.72rem;
+		font-size: 0.8125rem;
 		font-weight: 700;
 	}
 
@@ -383,7 +370,7 @@
 	.picker-panel {
 		background: var(--color-surface);
 		border: 1px solid var(--color-border);
-		border-radius: var(--radius-md);
+		border-radius: var(--radius-card);
 		overflow: hidden;
 		display: flex;
 		flex-direction: column;
@@ -493,8 +480,8 @@
 	}
 
 	.picker-check.checked {
-		background: var(--color-primary);
-		border-color: var(--color-primary);
+		background: var(--color-primary-bright);
+		border-color: var(--color-primary-bright);
 	}
 
 	.picker-avatar {
@@ -547,13 +534,14 @@
 	}
 
 	.start-btn {
-		padding: 7px 18px;
-		border-radius: var(--radius-sm);
+		min-height: 36px;
+		padding: 0 18px;
+		border-radius: var(--radius-pill);
 		background: var(--color-primary);
 		color: white;
 		border: none;
 		font-size: 0.85rem;
-		font-weight: 600;
+		font-weight: 700;
 		cursor: pointer;
 		transition: background 0.12s;
 		min-width: 100px;
@@ -570,36 +558,43 @@
 
 	/* Requests panel */
 	.requests-panel {
-		background: var(--color-surface);
-		border: 1px solid var(--color-primary);
-		border-radius: var(--radius-md);
+		background: var(--color-panel);
+		border-radius: var(--radius-card-lg);
+		padding: 24px;
 		overflow: hidden;
 	}
 
 	.requests-label {
-		font-size: 0.75rem;
-		font-weight: 600;
-		color: var(--color-text-muted);
-		padding: 10px 16px 6px;
+		font-size: 0.8125rem;
+		font-weight: 700;
+		color: var(--color-lilac-bright);
+		padding: 0 8px 14px;
 		text-transform: uppercase;
-		letter-spacing: 0.04em;
+		letter-spacing: 0.1em;
+		margin: 0;
 	}
 
 	.request-item {
 		display: flex;
+		flex-wrap: wrap;
 		align-items: center;
-		gap: 12px;
-		padding: 10px 16px;
-		border-top: 1px solid var(--color-border);
+		gap: 14px;
+		padding: 14px 16px;
+		border-radius: 22px;
+		background: rgba(255, 255, 255, 0.07);
+	}
+
+	.request-item + .request-item {
+		margin-top: 8px;
 	}
 
 	.request-profile {
 		display: flex;
 		align-items: center;
-		gap: 12px;
-		flex: 1;
+		gap: 14px;
+		flex: 1 1 260px;
 		min-width: 0;
-		color: var(--color-text);
+		color: white;
 	}
 
 	.request-info {
@@ -610,16 +605,16 @@
 	}
 
 	.request-name {
-		font-size: 0.875rem;
-		font-weight: 600;
+		font-size: 1rem;
+		font-weight: 700;
 		white-space: nowrap;
 		overflow: hidden;
 		text-overflow: ellipsis;
 	}
 
 	.request-preview {
-		font-size: 0.8rem;
-		color: var(--color-text-muted);
+		font-size: 0.875rem;
+		color: var(--color-lilac-soft);
 		white-space: nowrap;
 		overflow: hidden;
 		text-overflow: ellipsis;
@@ -627,20 +622,8 @@
 
 	.accept-btn {
 		flex-shrink: 0;
-		padding: 6px 14px;
-		border-radius: var(--radius-sm);
-		background: var(--color-primary);
-		color: white;
-		border: none;
-		font-size: 0.8rem;
-		font-weight: 600;
-		cursor: pointer;
-		transition: background 0.12s;
-		min-width: 58px;
-	}
-
-	.accept-btn:hover:not(:disabled) {
-		background: var(--color-primary-dark);
+		min-height: 44px;
+		padding: 0 24px;
 	}
 
 	.accept-btn:disabled {
@@ -660,8 +643,9 @@
 	}
 
 	.empty-state p {
-		font-size: 1rem;
-		font-weight: 600;
+		font-family: var(--font-display);
+		font-size: 1.05rem;
+		font-weight: 800;
 		color: var(--color-text);
 		margin: 0;
 	}
@@ -681,15 +665,17 @@
 		align-items: center;
 		gap: 14px;
 		padding: 14px 16px;
-		border-radius: var(--radius-md);
+		border-radius: var(--radius-card);
 		background: var(--color-surface);
 		border: 1px solid var(--color-border);
-		transition: background 0.12s;
+		transition: border-color 0.15s, box-shadow 0.15s, transform 0.15s;
 		color: var(--color-text);
 	}
 
 	.convo-item:hover {
-		background: var(--color-bg);
+		border-color: var(--color-lilac);
+		box-shadow: var(--shadow-card-hover);
+		transform: translateY(-2px);
 	}
 
 	.avatar-wrap {
@@ -708,7 +694,7 @@
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		background: var(--color-primary);
+		background: var(--color-primary-bright);
 		color: white;
 		font-weight: 700;
 		font-size: 1.1rem;
@@ -729,7 +715,7 @@
 		right: 0;
 		width: 10px;
 		height: 10px;
-		background: var(--color-primary);
+		background: var(--color-primary-bright);
 		border-radius: 50%;
 		border: 2px solid var(--color-surface);
 	}

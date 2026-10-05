@@ -47,29 +47,15 @@
 </script>
 
 <div class="editor-wrap">
-	<div class="toolbar">
-		<button type="button" class:on={bold} onclick={() => editor?.chain().focus().toggleBold().run()} title="Bold">
-			<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M6 4h8a4 4 0 0 1 4 4 4 4 0 0 1-4 4H6z"/><path d="M6 12h9a4 4 0 0 1 4 4 4 4 0 0 1-4 4H6z"/></svg>
-		</button>
-		<button type="button" class:on={italic} onclick={() => editor?.chain().focus().toggleItalic().run()} title="Italic">
-			<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="19" y1="4" x2="10" y2="4"/><line x1="14" y1="20" x2="5" y2="20"/><line x1="15" y1="4" x2="9" y2="20"/></svg>
-		</button>
-		<button type="button" class:on={h2} onclick={() => editor?.chain().focus().toggleHeading({ level: 2 }).run()} title="Heading">
-			<span style="font-size:0.8rem;font-weight:700;letter-spacing:-0.5px;">H2</span>
-		</button>
-		<button type="button" class:on={bullet} onclick={() => editor?.chain().focus().toggleBulletList().run()} title="Bullet list">
-			<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="9" y1="6" x2="20" y2="6"/><line x1="9" y1="12" x2="20" y2="12"/><line x1="9" y1="18" x2="20" y2="18"/><circle cx="4" cy="6" r="1" fill="currentColor"/><circle cx="4" cy="12" r="1" fill="currentColor"/><circle cx="4" cy="18" r="1" fill="currentColor"/></svg>
-		</button>
-		<button type="button" class:on={ordered} onclick={() => editor?.chain().focus().toggleOrderedList().run()} title="Numbered list">
-			<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="10" y1="6" x2="21" y2="6"/><line x1="10" y1="12" x2="21" y2="12"/><line x1="10" y1="18" x2="21" y2="18"/><path d="M4 6h1v4"/><path d="M4 10h2"/><path d="M6 18H4c0-1 2-2 2-3s-1-1.5-2-1"/></svg>
-		</button>
+	<div class="toolbar" role="toolbar" aria-label="Formatting">
+		<button type="button" class:on={bold} onclick={() => editor?.chain().focus().toggleBold().run()} aria-label="Bold" aria-pressed={bold} style="font-weight:800;">B</button>
+		<button type="button" class:on={italic} onclick={() => editor?.chain().focus().toggleItalic().run()} aria-label="Italic" aria-pressed={italic} style="font-style:italic;font-weight:600;">I</button>
+		<button type="button" class:on={h2} onclick={() => editor?.chain().focus().toggleHeading({ level: 2 }).run()} aria-label="Heading" aria-pressed={h2} style="font-weight:700;">H2</button>
+		<button type="button" class:on={bullet} onclick={() => editor?.chain().focus().toggleBulletList().run()} aria-label="Bullet list" aria-pressed={bullet} class="wide">List</button>
+		<button type="button" class:on={ordered} onclick={() => editor?.chain().focus().toggleOrderedList().run()} aria-label="Numbered list" aria-pressed={ordered} class="wide">1. List</button>
 		<div class="sep"></div>
-		<button type="button" onclick={() => editor?.chain().focus().undo().run()} title="Undo">
-			<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"/></svg>
-		</button>
-		<button type="button" onclick={() => editor?.chain().focus().redo().run()} title="Redo">
-			<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 7v6h-6"/><path d="M3 17a9 9 0 0 1 9-9 9 9 0 0 1 6 2.3L21 13"/></svg>
-		</button>
+		<button type="button" onclick={() => editor?.chain().focus().undo().run()} aria-label="Undo" class="wide">Undo</button>
+		<button type="button" onclick={() => editor?.chain().focus().redo().run()} aria-label="Redo" class="wide">Redo</button>
 	</div>
 	<div bind:this={editorEl} class="editor-body"></div>
 </div>
@@ -77,53 +63,63 @@
 <style>
 	.editor-wrap {
 		border: 1.5px solid var(--color-border);
-		border-radius: var(--radius-sm);
+		border-radius: var(--radius-input);
 		overflow: hidden;
-		background: var(--color-bg);
-		transition: border-color 0.15s;
+		background: var(--color-surface-tint);
+		transition: border-color 0.15s, box-shadow 0.15s;
 	}
 
 	.editor-wrap:focus-within {
 		border-color: var(--color-primary);
 		background: var(--color-surface);
+		box-shadow: 0 0 0 3px rgba(167, 139, 250, 0.35);
 	}
 
 	.toolbar {
 		display: flex;
 		align-items: center;
-		gap: 2px;
-		padding: 6px 8px;
+		gap: 4px;
+		padding: 8px;
 		border-bottom: 1px solid var(--color-border);
 		background: var(--color-surface);
+		flex-wrap: wrap;
 	}
 
 	.toolbar button {
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		width: 30px;
-		height: 28px;
+		min-width: 44px;
+		height: 44px;
+		padding: 0 12px;
 		border: none;
 		background: none;
-		border-radius: 6px;
-		color: var(--color-text-muted);
+		border-radius: var(--radius-md);
+		color: var(--color-text-strong);
+		font-family: inherit;
+		font-size: 0.875rem;
 		cursor: pointer;
-		transition: background 0.1s, color 0.1s;
+		transition: background 0.12s, color 0.12s;
+	}
+
+	.toolbar button.wide {
+		font-weight: 600;
 	}
 
 	.toolbar button:hover {
-		background: var(--color-bg);
-		color: var(--color-text);
+		background: var(--color-primary-light);
+		color: var(--color-primary-deep);
 	}
 
 	.toolbar button.on {
-		background: var(--color-primary-light);
-		color: var(--color-primary);
+		background: var(--color-primary);
+		border-color: var(--color-primary);
+		color: white;
 	}
 
 	.sep {
 		width: 1px;
-		height: 18px;
+		height: 24px;
 		background: var(--color-border);
 		margin: 0 4px;
 	}

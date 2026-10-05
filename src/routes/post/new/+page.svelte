@@ -110,29 +110,34 @@
 			<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
 			Cancel
 		</a>
-		<h1>New Post</h1>
-		<button class="publish-btn" onclick={publish} disabled={publishing}>
-			{#if publishing}
-				<svg class="spin" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 2a10 10 0 0 1 10 10"/></svg>
-				Publishing…
-			{:else}
-				Publish
-			{/if}
-		</button>
+		<div class="header-row">
+			<div>
+				<p class="header-eyebrow">Community</p>
+				<h1>New Post</h1>
+			</div>
+			<button class="publish-btn" onclick={publish} disabled={publishing}>
+				{#if publishing}
+					<svg class="spin" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 2a10 10 0 0 1 10 10"/></svg>
+					Publishing…
+				{:else}
+					Publish
+				{/if}
+			</button>
+		</div>
 	</div>
 
 	{#if error}
-		<p class="error-msg">{error}</p>
+		<p class="error-banner" role="alert">{error}</p>
 	{/if}
 
 	<div class="card">
-		<label class="section-label">Content</label>
+		<span class="section-label" id="content-label">Content</span>
 		<RichTextEditor value="" onchange={(html) => (body = html)} />
 	</div>
 
 	<div class="card">
 		<div class="media-header">
-			<label class="section-label">Images</label>
+			<span class="section-label">Images</span>
 			<label class="add-image-btn">
 				<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
 				Add images
@@ -157,20 +162,21 @@
 	</div>
 
 	<div class="card">
-		<label class="section-label">Tags (optional)</label>
+		<span class="section-label">Tags (optional)</span>
 		<TagInput {tags} ontags={(t) => (tags = t)} placeholder="e.g. jazz, producer, solo artist…" />
 		<p class="media-hint">Press Enter or comma to add. Up to 10 tags.</p>
 	</div>
 
 	<div class="card">
 		<label class="section-label" for="youtube">YouTube Video (optional)</label>
-		<input
-			id="youtube"
-			type="url"
-			placeholder="https://youtube.com/watch?v=..."
-			bind:value={youtubeUrl}
-			class="url-input"
-		/>
+		<div class="field">
+			<input
+				id="youtube"
+				type="url"
+				placeholder="https://youtube.com/watch?v=..."
+				bind:value={youtubeUrl}
+			/>
+		</div>
 		{#if youtubeUrl && parseYoutubeId(youtubeUrl)}
 			<p class="yt-ok">
 				<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
@@ -182,26 +188,27 @@
 
 <style>
 	.new-post-page {
-		max-width: 720px;
+		max-width: 820px;
 		margin: 0 auto;
 		display: flex;
 		flex-direction: column;
-		gap: 16px;
+		gap: 20px;
 	}
 
 	.page-header {
 		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		margin-bottom: 4px;
+		flex-direction: column;
+		gap: 14px;
 	}
 
 	.back-link {
+		align-self: flex-start;
 		display: flex;
 		align-items: center;
-		gap: 4px;
+		gap: 6px;
+		min-height: 44px;
 		font-size: 0.875rem;
-		font-weight: 500;
+		font-weight: 600;
 		color: var(--color-text-muted);
 		text-decoration: none;
 		transition: color 0.15s;
@@ -211,29 +218,48 @@
 		color: var(--color-text);
 	}
 
-	h1 {
-		font-size: 1.15rem;
+	.header-row {
+		display: flex;
+		align-items: flex-end;
+		justify-content: space-between;
+		gap: 16px;
+		flex-wrap: wrap;
+	}
+
+	.header-eyebrow {
+		margin: 0 0 6px;
+		font-size: 0.75rem;
 		font-weight: 700;
-		letter-spacing: -0.3px;
+		letter-spacing: 0.14em;
+		text-transform: uppercase;
+		color: var(--color-primary-bright);
+	}
+
+	h1 {
+		font-size: 3.25rem;
+		line-height: 1;
 	}
 
 	.publish-btn {
 		display: flex;
 		align-items: center;
 		gap: 6px;
+		min-height: 52px;
 		background: var(--color-primary);
 		color: white;
 		border: none;
-		border-radius: var(--radius-sm);
-		padding: 9px 20px;
-		font-size: 0.875rem;
-		font-weight: 600;
+		border-radius: var(--radius-pill);
+		padding: 0 32px;
+		font-size: 1rem;
+		font-weight: 700;
 		cursor: pointer;
-		transition: background 0.15s;
+		box-shadow: var(--shadow-btn);
+		transition: background 0.15s, transform 0.15s;
 	}
 
 	.publish-btn:hover:not(:disabled) {
 		background: var(--color-primary-dark);
+		transform: translateY(-2px);
 	}
 
 	.publish-btn:disabled {
@@ -252,26 +278,20 @@
 	.card {
 		background: var(--color-surface);
 		border: 1px solid var(--color-border);
-		border-radius: var(--radius-lg);
-		padding: 24px;
-		box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+		border-radius: var(--radius-card-lg);
+		padding: 28px 32px 32px;
+		box-shadow: var(--shadow-sm);
 		display: flex;
 		flex-direction: column;
-		gap: 12px;
+		gap: 14px;
 	}
 
 	.section-label {
-		font-size: 0.875rem;
-		font-weight: 600;
-	}
-
-	.error-msg {
-		background: #fef2f2;
-		color: #dc2626;
-		border: 1px solid #fecaca;
-		border-radius: var(--radius-sm);
-		padding: 10px 14px;
-		font-size: 0.875rem;
+		font-family: var(--font-display);
+		font-size: 1.5rem;
+		font-weight: 800;
+		letter-spacing: -0.02em;
+		color: var(--color-ink);
 	}
 
 	/* Images section */
@@ -285,13 +305,14 @@
 		display: flex;
 		align-items: center;
 		gap: 6px;
+		min-height: 36px;
 		font-size: 0.825rem;
-		font-weight: 500;
-		color: var(--color-primary);
+		font-weight: 700;
+		color: var(--color-primary-deep);
 		cursor: pointer;
-		padding: 6px 12px;
+		padding: 0 14px;
 		border: 1.5px solid var(--color-primary-light);
-		border-radius: var(--radius-sm);
+		border-radius: var(--radius-pill);
 		background: var(--color-primary-light);
 		transition: background 0.15s, border-color 0.15s;
 	}
@@ -325,7 +346,7 @@
 		position: relative;
 		width: 100px;
 		height: 100px;
-		border-radius: var(--radius-sm);
+		border-radius: var(--radius-md);
 		overflow: hidden;
 		border: 1px solid var(--color-border);
 	}
@@ -355,26 +376,6 @@
 
 	.remove-btn:hover {
 		background: rgba(220, 38, 38, 0.85);
-	}
-
-	/* YouTube */
-	.url-input {
-		padding: 10px 14px;
-		border: 1.5px solid var(--color-border);
-		border-radius: var(--radius-sm);
-		font-size: 0.875rem;
-		background: var(--color-bg);
-		color: var(--color-text);
-		outline: none;
-		font-family: inherit;
-		transition: border-color 0.15s;
-		width: 100%;
-		box-sizing: border-box;
-	}
-
-	.url-input:focus {
-		border-color: var(--color-primary);
-		background: var(--color-surface);
 	}
 
 	.yt-ok {

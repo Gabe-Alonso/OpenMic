@@ -211,6 +211,7 @@
 </script>
 
 <div class="thread-page">
+<section class="thread-card" aria-label="Conversation">
 	<!-- Header -->
 	<div class="thread-header">
 		<a href="/messages" class="back-btn" aria-label="Back">
@@ -374,15 +375,27 @@
 			</svg>
 		</button>
 	</div>
+</section>
 </div>
 
 <style>
 	.thread-page {
-		max-width: 680px;
+		max-width: 800px;
 		margin: 0 auto;
 		display: flex;
 		flex-direction: column;
-		height: calc(100vh - 100px);
+	}
+
+	.thread-card {
+		display: flex;
+		flex-direction: column;
+		height: 820px;
+		max-height: calc(100vh - 140px);
+		background: var(--color-surface);
+		border: 1px solid var(--color-border);
+		border-radius: var(--radius-card-lg);
+		box-shadow: 0 24px 60px rgba(76, 29, 149, 0.12);
+		overflow: hidden;
 	}
 
 	/* Header */
@@ -390,7 +403,7 @@
 		display: flex;
 		align-items: center;
 		gap: 12px;
-		padding-bottom: 14px;
+		padding: 18px 24px;
 		border-bottom: 1px solid var(--color-border);
 		flex-shrink: 0;
 	}
@@ -463,7 +476,7 @@
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		background: var(--color-primary);
+		background: var(--color-primary-bright);
 		color: white;
 		font-weight: 700;
 		font-size: 0.75rem;
@@ -477,10 +490,10 @@
 		gap: 12px;
 		padding: 12px 16px;
 		background: var(--color-primary-light);
-		border: 1px solid var(--color-primary);
-		border-radius: var(--radius-md);
+		border: 1px solid var(--color-primary-bright);
+		border-radius: var(--radius-card);
 		font-size: 0.875rem;
-		margin: 12px 0;
+		margin: 12px 24px 0;
 		flex-shrink: 0;
 	}
 
@@ -494,10 +507,10 @@
 		background: var(--color-primary);
 		color: white;
 		border: none;
-		border-radius: var(--radius-sm);
+		border-radius: var(--radius-pill);
 		padding: 6px 14px;
 		font-size: 0.8rem;
-		font-weight: 600;
+		font-weight: 700;
 		cursor: pointer;
 		transition: background 0.12s;
 		white-space: nowrap;
@@ -511,7 +524,7 @@
 	.messages-wrap {
 		flex: 1;
 		overflow-y: auto;
-		padding: 16px 0;
+		padding: 16px 24px;
 		display: flex;
 		flex-direction: column;
 		gap: 6px;
@@ -555,7 +568,8 @@
 	}
 
 	.bubble {
-		background: #e5e7eb;
+		background: var(--color-surface);
+		border: 1px solid var(--color-border);
 		color: var(--color-text);
 		padding: 10px 14px;
 		border-radius: 18px 18px 18px 4px;
@@ -566,6 +580,7 @@
 
 	.bubble.mine {
 		background: var(--color-primary);
+		border-color: var(--color-primary);
 		color: white;
 		border-radius: 18px 18px 4px 18px;
 	}
@@ -607,7 +622,7 @@
 
 	.read-receipt {
 		font-size: 0.7rem;
-		color: var(--color-primary);
+		color: var(--color-primary-deep);
 		font-weight: 600;
 	}
 
@@ -641,7 +656,7 @@
 		display: flex;
 		align-items: center;
 		gap: 8px;
-		padding: 12px 0 4px;
+		padding: 14px 24px;
 		border-top: 1px solid var(--color-border);
 		flex-shrink: 0;
 	}
@@ -665,8 +680,8 @@
 	.attach-btn:hover:not(:disabled),
 	.send-btn:hover:not(:disabled) {
 		background: var(--color-primary-light);
-		border-color: var(--color-primary);
-		color: var(--color-primary);
+		border-color: var(--color-lilac);
+		color: var(--color-primary-deep);
 	}
 
 	.send-btn:not(:disabled) {
@@ -687,18 +702,19 @@
 
 	.text-input {
 		flex: 1;
-		padding: 10px 14px;
+		padding: 10px 16px;
 		border: 1.5px solid var(--color-border);
-		border-radius: 999px;
+		border-radius: var(--radius-pill);
 		font-size: 0.9rem;
-		background: var(--color-bg);
+		background: var(--color-surface-tint);
 		color: var(--color-text);
 		outline: none;
-		transition: border-color 0.12s;
+		transition: border-color 0.12s, box-shadow 0.12s;
 	}
 
 	.text-input:focus {
 		border-color: var(--color-primary);
+		box-shadow: 0 0 0 3px rgba(167, 139, 250, 0.35);
 	}
 
 	.text-input:disabled {
@@ -712,8 +728,35 @@
 
 	.send-error {
 		font-size: 0.78rem;
-		color: #dc2626;
-		padding: 4px 2px;
+		color: var(--color-danger);
+		padding: 4px 24px;
 		flex-shrink: 0;
+	}
+
+	@media (max-width: 720px) {
+		.thread-card {
+			height: calc(100vh - 100px);
+			max-height: none;
+			border-radius: var(--radius-card);
+			border-left: none;
+			border-right: none;
+			box-shadow: none;
+		}
+
+		.thread-header,
+		.messages-wrap,
+		.input-area {
+			padding-left: 16px;
+			padding-right: 16px;
+		}
+
+		.request-banner {
+			margin-left: 16px;
+			margin-right: 16px;
+		}
+
+		.send-error {
+			padding: 4px 16px;
+		}
 	}
 </style>
