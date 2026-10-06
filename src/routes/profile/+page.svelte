@@ -311,6 +311,19 @@
 					</div>
 				</div>
 
+				<div class="form-field full band-field">
+					<div class="band-toggle-text">
+						<span class="band-toggle-label" id="band-label">Band or collective</span>
+						<span class="band-toggle-desc">Turn this on if this account represents a band rather than just you. Other artists can then request to join.</span>
+					</div>
+					<label class="toggle-wrap" aria-labelledby="band-label">
+						<input type="checkbox" name="is_band" checked={!!(data.profile as any)?.is_band} />
+						<span class="toggle-track">
+							<span class="toggle-thumb"></span>
+						</span>
+					</label>
+				</div>
+
 				<div class="form-field">
 					<label for="location">General Area</label>
 					<LocationSearch
@@ -1086,6 +1099,35 @@
 		color: #dc2626;
 		text-align: center;
 		max-width: 260px;
+	}
+
+	.band-field {
+		flex-direction: row;
+		align-items: center;
+		justify-content: space-between;
+		gap: 20px;
+		padding: 14px 16px;
+		border: 1.5px solid var(--color-border);
+		border-radius: var(--radius-input);
+		background: var(--color-surface-tint);
+	}
+
+	.band-toggle-text {
+		display: flex;
+		flex-direction: column;
+		gap: 3px;
+	}
+
+	.band-toggle-label {
+		font-size: 0.9375rem;
+		font-weight: 700;
+		color: var(--color-text-strong);
+	}
+
+	.band-toggle-desc {
+		font-size: 0.8125rem;
+		color: var(--color-text-muted);
+		line-height: 1.45;
 	}
 
 	.segmented {

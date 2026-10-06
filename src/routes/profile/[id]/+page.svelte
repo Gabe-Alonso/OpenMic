@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
+	import { untrack } from 'svelte';
 	import PostCard from '$lib/components/PostCard.svelte';
 	import type { PageData } from './$types';
 
@@ -11,6 +12,52 @@
 	let followerCount = $state(data.followerCount);
 	let toggling = $state(false);
 	let followBtnHovered = $state(false);
+
+	type MemberProfile = { id: string; full_name: string | null; avatar_url: string | null };
+	let members = $state<MemberProfile[]>(untrack(() => data.members));
+	let pendingRequests = $state<MemberProfile[]>(untrack(() => data.pendingRequests));
+	let membershipStatus = $state<'pending' | 'accepted' | null>(untrack(() => data.viewerMembershipStatus));
+	let membershipBusy = $state(false);
+	let membershipHovered = $state(false);
+
+	async function requestJoin() {
+		if (membershipBusy) return;
+		membershipBusy = true;
+		const res = await fetch(`/api/bands/${profile.id}/membership`, { method: 'POST' });
+		if (res.ok) membershipStatus = 'pending';
+		else if (res.status === 401) goto('/signin');
+		membershipBusy = false;
+	}
+
+	async function leaveBand() {
+		if (membershipBusy) return;
+		membershipBusy = true;
+		const res = await fetch(`/api/bands/${profile.id}/membership`, { method: 'DELETE' });
+		if (res.ok) membershipStatus = null;
+		membershipBusy = false;
+	}
+
+	async function acceptMember(memberId: string) {
+		const res = await fetch(`/api/bands/${profile.id}/membership`, {
+			method: 'PATCH',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ member_id: memberId })
+		});
+		if (!res.ok) return;
+		const req = pendingRequests.find((p) => p.id === memberId);
+		pendingRequests = pendingRequests.filter((p) => p.id !== memberId);
+		if (req) members = [...members, req];
+	}
+
+	async function removeMember(memberId: string) {
+		const res = await fetch(`/api/bands/${profile.id}/membership?member_id=${memberId}`, { method: 'DELETE' });
+		if (res.ok) members = members.filter((m) => m.id !== memberId);
+	}
+
+	async function declineMember(memberId: string) {
+		const res = await fetch(`/api/bands/${profile.id}/membership?member_id=${memberId}`, { method: 'DELETE' });
+		if (res.ok) pendingRequests = pendingRequests.filter((p) => p.id !== memberId);
+	}
 
 	function getInitial(): string {
 		const name = profile?.full_name || profile?.id;
@@ -198,6 +245,21 @@
 								Follow
 							{/if}
 						</button>
+						{#if (profile as any).is_band && data.user && !data.viewerIsBand}
+							{#if membershipStatus === null}
+								<button class="membership-btn" onclick={requestJoin} disabled={membershipBusy}>Request to join</button>
+							{:else if membershipStatus === 'pending'}
+								<button
+									class="membership-btn requested"
+									onmouseenter={() => (membershipHovered = true)}
+									onmouseleave={() => (membershipHovered = false)}
+									onclick={leaveBand}
+									disabled={membershipBusy}
+								>{membershipHovered ? 'Cancel request' : 'Requested'}</button>
+							{:else}
+								<button class="membership-btn requested" onclick={leaveBand} disabled={membershipBusy}>Leave band</button>
+							{/if}
+						{/if}
 						{#if data.user}
 							<button class="message-btn" onclick={startDM} disabled={dmLoading} aria-label="Message">
 								<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -212,8 +274,11 @@
 			</div>
 
 			<div class="chips-stats-row">
-				{#if (profile as any).artist_roles?.length > 0 || (profile as any).tags?.length > 0}
+				{#if (profile as any).is_band || (profile as any).artist_roles?.length > 0 || (profile as any).tags?.length > 0}
 					<div class="role-chips">
+						{#if (profile as any).is_band}
+							<span class="chip band-chip">Band / Collective</span>
+						{/if}
 						{#each (profile as any).artist_roles ?? [] as role}
 							<span class="chip role-chip">{role}</span>
 						{/each}
@@ -230,6 +295,35 @@
 					<button class="stat stat-btn" onclick={() => openFollowModal('following')}><strong>{data.followingCount}</strong> Following</button>
 				</div>
 			</div>
+
+			{#if (profile as any).is_band}
+				<div class="members-row">
+					<span class="members-label">Members</span>
+					{#if members.length > 0}
+						<div class="member-list">
+							{#each members as m (m.id)}
+								<div class="member-item">
+									<a href="/profile/{m.id}" class="member-chip">
+										<span class="member-avatar">
+											{#if m.avatar_url}
+												<img src={m.avatar_url} alt="" />
+											{:else}
+												{m.full_name?.[0]?.toUpperCase() ?? '?'}
+											{/if}
+										</span>
+										<span class="member-name">{m.full_name ?? 'Anonymous Artist'}</span>
+									</a>
+									{#if data.isOwnProfile}
+										<button class="remove-member" onclick={() => removeMember(m.id)} aria-label="Remove {m.full_name ?? 'member'}">×</button>
+									{/if}
+								</div>
+							{/each}
+						</div>
+					{:else}
+						<p class="members-empty">No members yet.</p>
+					{/if}
+				</div>
+			{/if}
 
 			{#if data.mutuals.length > 0}
 				<div class="mutuals-row">
@@ -252,6 +346,32 @@
 
 	<div class="profile-body">
 		<div class="main-col">
+			{#if data.isOwnProfile && (profile as any).is_band && pendingRequests.length > 0}
+				<section class="card">
+					<h2 class="card-title">Join requests</h2>
+					<div class="request-list">
+						{#each pendingRequests as p (p.id)}
+							<div class="request-item">
+								<a href="/profile/{p.id}" class="request-person">
+									<span class="member-avatar">
+										{#if p.avatar_url}
+											<img src={p.avatar_url} alt="" />
+										{:else}
+											{p.full_name?.[0]?.toUpperCase() ?? '?'}
+										{/if}
+									</span>
+									<span class="member-name">{p.full_name ?? 'Anonymous Artist'}</span>
+								</a>
+								<div class="request-actions">
+									<button class="accept-btn" onclick={() => acceptMember(p.id)}>Accept</button>
+									<button class="decline-btn" onclick={() => declineMember(p.id)}>Decline</button>
+								</div>
+							</div>
+						{/each}
+					</div>
+				</section>
+			{/if}
+
 			{#if profile.bio}
 				<section class="card">
 					<h2 class="card-title">About</h2>
@@ -1143,6 +1263,181 @@
 		padding: 20px 0 8px;
 		border-top: 1px solid var(--color-border);
 		margin-top: 4px;
+	}
+
+	/* Band */
+	.band-chip {
+		background: var(--color-primary);
+		color: white;
+	}
+
+	.membership-btn {
+		display: flex;
+		align-items: center;
+		flex-shrink: 0;
+		min-height: 44px;
+		padding: 0 22px;
+		border-radius: var(--radius-pill);
+		font-size: 0.875rem;
+		font-weight: 700;
+		cursor: pointer;
+		background: var(--color-primary);
+		color: white;
+		border: 1.5px solid var(--color-primary);
+		box-shadow: var(--shadow-btn);
+		transition: background 0.15s, border-color 0.15s, color 0.15s;
+	}
+
+	.membership-btn.requested {
+		background: none;
+		color: var(--color-text);
+		border-color: var(--color-border);
+		box-shadow: none;
+	}
+
+	.membership-btn:hover:not(:disabled):not(.requested) {
+		background: var(--color-primary-dark);
+	}
+
+	.membership-btn:disabled {
+		opacity: 0.7;
+		cursor: default;
+	}
+
+	.members-row {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 14px;
+		margin-top: 24px;
+		padding-top: 20px;
+		border-top: 1px solid var(--color-border-soft);
+	}
+
+	.members-label {
+		font-size: 0.8125rem;
+		font-weight: 700;
+		letter-spacing: 0.1em;
+		text-transform: uppercase;
+		color: var(--color-text-muted);
+	}
+
+	.member-list {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 8px;
+	}
+
+	.member-chip,
+	.request-person {
+		display: inline-flex;
+		align-items: center;
+		gap: 8px;
+		padding: 4px 14px 4px 4px;
+		border-radius: var(--radius-pill);
+		background: var(--color-surface-tint);
+		border: 1px solid var(--color-border);
+		color: var(--color-text);
+		font-size: 0.875rem;
+		font-weight: 600;
+		text-decoration: none;
+	}
+
+	.member-chip:hover {
+		background: var(--color-primary-light);
+	}
+
+	.member-item {
+		display: inline-flex;
+		align-items: center;
+		gap: 4px;
+	}
+
+	.remove-member {
+		width: 26px;
+		height: 26px;
+		border-radius: 50%;
+		border: 1px solid var(--color-border);
+		background: var(--color-surface);
+		color: var(--color-text-muted);
+		font-size: 1rem;
+		line-height: 1;
+		cursor: pointer;
+	}
+
+	.remove-member:hover {
+		color: var(--color-danger);
+		border-color: var(--color-danger-border);
+		background: var(--color-danger-bg);
+	}
+
+	.member-avatar {
+		width: 30px;
+		height: 30px;
+		border-radius: 50%;
+		overflow: hidden;
+		flex-shrink: 0;
+		background: var(--color-primary-bright);
+		color: white;
+		font-weight: 700;
+		font-size: 0.8rem;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+	}
+
+	.member-avatar img {
+		width: 100%;
+		height: 100%;
+		object-fit: cover;
+	}
+
+	.members-empty {
+		margin: 0;
+		font-size: 0.875rem;
+		color: var(--color-text-muted);
+	}
+
+	.request-list {
+		display: flex;
+		flex-direction: column;
+		gap: 10px;
+	}
+
+	.request-item {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 12px;
+		flex-wrap: wrap;
+	}
+
+	.request-actions {
+		display: flex;
+		gap: 8px;
+	}
+
+	.accept-btn,
+	.decline-btn {
+		min-height: 36px;
+		padding: 0 16px;
+		border-radius: var(--radius-pill);
+		font-size: 0.8125rem;
+		font-weight: 700;
+		cursor: pointer;
+		font-family: inherit;
+	}
+
+	.accept-btn {
+		background: var(--color-primary);
+		color: white;
+		border: 1.5px solid var(--color-primary);
+	}
+
+	.decline-btn {
+		background: none;
+		color: var(--color-text-muted);
+		border: 1.5px solid var(--color-border);
 	}
 
 	@media (max-width: 640px) {

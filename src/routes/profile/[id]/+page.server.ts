@@ -98,6 +98,31 @@ export const load: PageServerLoad = async ({ params, locals: { supabase, safeGet
 	const { data: venueEventsRaw } = await supabase
 		.from('venue_events').select('*').eq('profile_id', params.id).order('date', { ascending: true });
 
+	type MemberProfile = { id: string; full_name: string | null; avatar_url: string | null };
+	let members: MemberProfile[] = [];
+	let pendingRequests: MemberProfile[] = [];
+	let viewerMembershipStatus: 'pending' | 'accepted' | null = null;
+	let viewerIsBand = false;
+
+	if (user) {
+		const { data: viewerProfile } = await supabase
+			.from('profiles').select('is_band').eq('id', user.id).maybeSingle();
+		viewerIsBand = !!viewerProfile?.is_band;
+	}
+
+	if ((profile as any).is_band) {
+		const { data: rows } = await supabase
+			.from('band_memberships')
+			.select('member_id, status, member:profiles!member_id(id, full_name, avatar_url)')
+			.eq('band_id', params.id);
+
+		for (const row of (rows ?? []) as any[]) {
+			if (row.status === 'accepted') members.push(row.member);
+			else if (isOwnProfile) pendingRequests.push(row.member);
+			if (user && row.member_id === user.id) viewerMembershipStatus = row.status;
+		}
+	}
+
 	return {
 		profile,
 		posts: postsData,
@@ -107,6 +132,10 @@ export const load: PageServerLoad = async ({ params, locals: { supabase, safeGet
 		userFollows: !!userFollowsRes.data,
 		isOwnProfile,
 		mutuals,
-		venueEvents: venueEventsRaw ?? []
+		venueEvents: venueEventsRaw ?? [],
+		members,
+		pendingRequests,
+		viewerMembershipStatus,
+		viewerIsBand
 	};
 };

@@ -89,6 +89,7 @@ export const actions: Actions = {
 			tags,
 			profile_type: profileType,
 			artist_roles: profileType === 'artist' ? artistRoles : [],
+			is_band: data.has('is_band'),
 			updated_at: new Date().toISOString()
 		});
 
