@@ -68,6 +68,22 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npx playwright install --with-deps chromium
+      - name: Diagnose test login (temporary)
+        run: |
+          node -e '
+            const url = process.env.PUBLIC_SUPABASE_URL;
+            console.log("project host:", new URL(url).host);
+            console.log("email length:", (process.env.E2E_USER_EMAIL || "").length, "password length:", (process.env.E2E_USER_PASSWORD || "").length);
+            fetch(url + "/auth/v1/token?grant_type=password", {
+              method: "POST",
+              headers: { apikey: process.env.PUBLIC_SUPABASE_ANON_KEY, "Content-Type": "application/json" },
+              body: JSON.stringify({ email: process.env.E2E_USER_EMAIL, password: process.env.E2E_USER_PASSWORD })
+            }).then(async (r) => {
+              const text = await r.text();
+              let j = {}; try { j = JSON.parse(text); } catch {}
+              console.log("status:", r.status, "error_code:", j.error_code ?? "-", "msg:", j.msg ?? j.error_description ?? "-");
+            });
+          '
       - run: npm run test:e2e
       - uses: actions/upload-artifact@v4
         if: failure()
