@@ -14,7 +14,9 @@ export const GET: RequestHandler = async ({ locals: { safeGetSession } }) => {
 	const { data, error: queryError } = await admin
 		.from('reports')
 		.select(
-			'id, post_id, reason, details, status, created_at, reporter:reporter_id(id, full_name), post:post_id(id, body, author_id, profiles(id, full_name))'
+			// See the comment in admin/reports/+page.server.ts — reports has two
+			// FKs into profiles, so the embed needs an explicit !hint.
+			'id, post_id, reason, details, status, created_at, reporter:profiles!reporter_id(id, full_name), post:posts(id, body, author_id, profiles(id, full_name))'
 		)
 		.eq('status', 'pending')
 		.order('created_at', { ascending: true });
