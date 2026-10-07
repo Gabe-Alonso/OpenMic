@@ -59,21 +59,24 @@ describe.skipIf(!configured)('band membership (integration)', () => {
 	let other: Actor;
 	const created: string[] = [];
 
-	async function makeUser(label: string) {
+	async function makeUser(label: string, isBand: boolean) {
 		const email = `it-${label}-${stamp}@openmic-seed.test`;
 		const { data, error } = await admin.auth.admin.createUser({ email, password: PASSWORD, email_confirm: true });
 		if (error) throw error;
 		created.push(data.user.id);
-		// The on-signup trigger creates the profile row; wait briefly for it.
-		await new Promise((r) => setTimeout(r, 800));
+		// Create the profile row explicitly rather than relying on a signup trigger,
+		// and fail loudly if it does not work.
+		const { error: profileError } = await admin
+			.from('profiles')
+			.upsert({ id: data.user.id, full_name: `IT ${label}`, is_band: isBand });
+		if (profileError) throw profileError;
 		return { email, id: data.user.id };
 	}
 
 	beforeAll(async () => {
-		const b = await makeUser('band');
-		const p = await makeUser('member');
-		const o = await makeUser('outsider');
-		await admin.from('profiles').update({ is_band: true, full_name: 'IT Band' }).eq('id', b.id);
+		const b = await makeUser('band', true);
+		const p = await makeUser('member', false);
+		const o = await makeUser('outsider', false);
 		band = await actorFor(admin, b.email);
 		personal = await actorFor(admin, p.email);
 		other = await actorFor(admin, o.email);
