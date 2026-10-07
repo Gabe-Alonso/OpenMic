@@ -13,7 +13,16 @@ export default defineConfig({
 	use: {
 		baseURL,
 		trace: 'on-first-retry',
-		screenshot: 'only-on-failure'
+		screenshot: 'only-on-failure',
+		// Vercel preview URLs sit behind a login wall by default. This header, combined
+		// with the bypass-cookie header, gets Playwright past it and keeps it past it for
+		// the rest of the browser context. See: Vercel's "Protection Bypass for Automation".
+		...(process.env.VERCEL_AUTOMATION_BYPASS_SECRET && {
+			extraHTTPHeaders: {
+				'x-vercel-protection-bypass': process.env.VERCEL_AUTOMATION_BYPASS_SECRET,
+				'x-vercel-set-bypass-cookie': 'true'
+			}
+		})
 	},
 	projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
 	// CI serves the production build (what ships). Locally we use the dev server, because
