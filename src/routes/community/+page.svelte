@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { stripHtml, timeAgo } from '$lib/format';
 	import { goto } from '$app/navigation';
 	import PostCard from '$lib/components/PostCard.svelte';
 	import type { PageData } from './$types';
@@ -69,21 +70,6 @@
 	async function handleToggleFollowers() {
 		includeFollowers = !includeFollowers;
 		await loadFollowing();
-	}
-
-	function stripHtml(html: string | null): string {
-		return (html ?? '').replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim();
-	}
-
-	function timeAgo(dateStr: string): string {
-		const diff = Date.now() - new Date(dateStr).getTime();
-		const mins = Math.floor(diff / 60000);
-		if (mins < 60) return `${mins}m ago`;
-		const hrs = Math.floor(mins / 60);
-		if (hrs < 24) return `${hrs}h ago`;
-		const days = Math.floor(hrs / 24);
-		if (days < 30) return `${days}d ago`;
-		return new Date(dateStr).toLocaleDateString();
 	}
 
 	const featuredPost = $derived(activeTab === 'discover' && data.discoverPosts.length > 0 ? data.discoverPosts[0] : null);

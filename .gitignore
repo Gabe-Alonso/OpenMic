@@ -24,3 +24,16 @@ scripts/.seed-manifest.json
 # Vite
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
+
+# Test output
+playwright-report/
+test-results/
+coverage/
+
+.vercel
+.env*.local
+
+# Local database dumps and Supabase CLI link
+schema.sql
+roles.sql
+supabase/

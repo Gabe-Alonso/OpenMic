@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { parseYoutubeId } from '$lib/format';
 	import { goto } from '$app/navigation';
 	import { createClient } from '$lib/supabase';
 	import RichTextEditor from '$lib/components/RichTextEditor.svelte';
@@ -35,11 +36,6 @@
 		URL.revokeObjectURL(imagePreviews[i]);
 		imageFiles = imageFiles.filter((_, idx) => idx !== i);
 		imagePreviews = imagePreviews.filter((_, idx) => idx !== i);
-	}
-
-	function parseYoutubeId(url: string): string | null {
-		const m = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
-		return m ? m[1] : null;
 	}
 
 	async function publish() {
