@@ -37,3 +37,6 @@ coverage/
 schema.sql
 roles.sql
 supabase/
+
+# Personal notes, not project documentation
+notes/
