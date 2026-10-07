@@ -3,6 +3,7 @@
 	import { invalidateAll } from '$app/navigation';
 	import { createBrowserClient } from '@supabase/ssr';
 	import { PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY } from '$env/static/public';
+	import { resizeImage } from '$lib/resizeImage';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
@@ -127,7 +128,8 @@
 		}
 	}
 
-	async function sendImage(file: File) {
+	async function sendImage(rawFile: File) {
+		const file = await resizeImage(rawFile);
 		const fd = new FormData();
 		fd.append('file', file);
 		fd.append('conversation_id', convo.id);

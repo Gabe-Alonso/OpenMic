@@ -2,6 +2,7 @@
 	import { parseYoutubeId } from '$lib/format';
 	import { goto } from '$app/navigation';
 	import { createClient } from '$lib/supabase';
+	import { resizeImage } from '$lib/resizeImage';
 	import RichTextEditor from '$lib/components/RichTextEditor.svelte';
 	import TagInput from '$lib/components/TagInput.svelte';
 
@@ -16,7 +17,7 @@
 	let publishing = $state(false);
 	let error = $state<string | null>(null);
 
-	function handleFileSelect(e: Event) {
+	async function handleFileSelect(e: Event) {
 		const input = e.currentTarget as HTMLInputElement;
 		const files = Array.from(input.files ?? []);
 		input.value = ''; // reset so same file can be re-selected
@@ -28,8 +29,9 @@
 			}
 		}
 		error = null;
-		imageFiles = [...imageFiles, ...files];
-		imagePreviews = [...imagePreviews, ...files.map((f) => URL.createObjectURL(f))];
+		const resized = await Promise.all(files.map((f) => resizeImage(f)));
+		imageFiles = [...imageFiles, ...resized];
+		imagePreviews = [...imagePreviews, ...resized.map((f) => URL.createObjectURL(f))];
 	}
 
 	function removeImage(i: number) {
