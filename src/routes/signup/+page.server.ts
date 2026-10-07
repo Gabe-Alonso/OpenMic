@@ -1,4 +1,5 @@
 import { fail, redirect } from '@sveltejs/kit';
+import { logger } from '@sentry/sveltekit';
 import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ locals: { safeGetSession } }) => {
@@ -27,7 +28,7 @@ export const actions: Actions = {
 			return fail(400, { error: 'Password must be at least 8 characters.', email, name });
 		}
 
-		const { error } = await supabase.auth.signUp({
+		const { data, error } = await supabase.auth.signUp({
 			email,
 			password,
 			options: { data: { full_name: name } }
@@ -36,6 +37,8 @@ export const actions: Actions = {
 		if (error) {
 			return fail(400, { error: error.message, email, name });
 		}
+
+		logger.info('user signed up', { userId: data.user?.id });
 
 		return { success: true };
 	}
