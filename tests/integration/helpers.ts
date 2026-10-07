@@ -20,6 +20,14 @@ export const admin: SupabaseClient = configured
 	? createClient(SUPABASE_URL!, SERVICE!, { auth: { persistSession: false } })
 	: (null as any);
 
+// A real, sessionless anon-key client — what an unauthenticated request's
+// locals.supabase actually is in the app, as opposed to undefined. Only
+// matters for routes that touch supabase without requiring a signed-in user
+// (e.g. public search); routes that return early on `!user` never reach it.
+export const anon: SupabaseClient = configured
+	? createClient(SUPABASE_URL!, ANON!, { auth: { persistSession: false } })
+	: (null as any);
+
 // Signs a user in and returns a client that sends their JWT, so auth.uid()
 // inside RLS resolves to this user, exactly as it would for a real request.
 export async function actorFor(email: string): Promise<Actor> {
@@ -86,7 +94,7 @@ export function buildEvent(
 		url,
 		request,
 		locals: {
-			supabase: actor?.client,
+			supabase: actor?.client ?? anon,
 			safeGetSession: async () => ({ user: actor?.user ?? null, session: null })
 		}
 	} as any;

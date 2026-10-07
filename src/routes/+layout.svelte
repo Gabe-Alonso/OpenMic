@@ -6,6 +6,7 @@
 	import type { User } from '@supabase/supabase-js';
 	import { createBrowserClient } from '@supabase/ssr';
 	import { PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY } from '$env/static/public';
+	import { stripHtml } from '$lib/format';
 	import '../app.css';
 
 	let { children, data }: { children: any; data: LayoutData } = $props();
@@ -67,7 +68,7 @@
 
 	// Search
 	let searchQuery = $state('');
-	let searchResults = $state<{ profiles: any[]; posts: any[] }>({ profiles: [], posts: [] });
+	let searchResults = $state<{ profiles: any[]; posts: any[]; venues: any[] }>({ profiles: [], posts: [], venues: [] });
 	let searchLoading = $state(false);
 	let showResults = $state(false);
 	let searchTimer: ReturnType<typeof setTimeout> | null = null;
@@ -77,7 +78,7 @@
 		if (searchTimer) clearTimeout(searchTimer);
 		if (q.length < 2) {
 			showResults = false;
-			searchResults = { profiles: [], posts: [] };
+			searchResults = { profiles: [], posts: [], venues: [] };
 			return;
 		}
 		searchLoading = true;
@@ -98,7 +99,7 @@
 	function selectResult() {
 		showResults = false;
 		searchQuery = '';
-		searchResults = { profiles: [], posts: [] };
+		searchResults = { profiles: [], posts: [], venues: [] };
 	}
 
 	// Mobile menu
@@ -115,7 +116,7 @@
 {#snippet searchResultsList()}
 	{#if searchLoading}
 		<p class="search-status">Searching…</p>
-	{:else if searchResults.profiles.length === 0 && searchResults.posts.length === 0}
+	{:else if searchResults.profiles.length === 0 && searchResults.posts.length === 0 && searchResults.venues.length === 0}
 		<p class="search-status">No results for "{searchQuery}"</p>
 	{:else}
 		{#if searchResults.profiles.length > 0}
@@ -152,7 +153,7 @@
 			<div class="result-section">
 				<p class="result-label">Posts</p>
 				{#each searchResults.posts as post (post.id)}
-					<a href="/community" class="result-item" onclick={selectResult}>
+					<a href="/post/{post.id}" class="result-item" onclick={selectResult}>
 						<div class="result-avatar">
 							{#if post.author?.avatar_url}
 								<img src={post.author.avatar_url} alt={post.author?.full_name ?? ''} />
@@ -168,7 +169,30 @@
 									{/each}
 								</div>
 							{/if}
-							<p class="result-content">{post.content}</p>
+							<p class="result-content">{stripHtml(post.body)}</p>
+						</div>
+					</a>
+				{/each}
+			</div>
+		{/if}
+
+		{#if (searchResults.profiles.length > 0 || searchResults.posts.length > 0) && searchResults.venues.length > 0}
+			<div class="result-divider"></div>
+		{/if}
+
+		{#if searchResults.venues.length > 0}
+			<div class="result-section">
+				<p class="result-label">Venues</p>
+				{#each searchResults.venues as venue (venue.id)}
+					<a
+						href={venue.claimed_profile_id ? `/profile/${venue.claimed_profile_id}` : '/venues'}
+						class="result-item"
+						onclick={selectResult}
+					>
+						<div class="result-avatar">📍</div>
+						<div class="result-text">
+							<span class="result-name">{venue.name}</span>
+							{#if venue.city}<p class="result-sub">{venue.city}</p>{/if}
 						</div>
 					</a>
 				{/each}
