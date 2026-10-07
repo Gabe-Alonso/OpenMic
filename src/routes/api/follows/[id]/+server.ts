@@ -1,10 +1,15 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
+import { checkRateLimit, rateLimitResponse } from '$lib/server/rateLimit';
 
 export const POST: RequestHandler = async ({ params, locals: { supabase, safeGetSession } }) => {
 	const { user } = await safeGetSession();
 	if (!user) return json({ error: 'Unauthorized' }, { status: 401 });
 	if (user.id === params.id) return json({ error: 'Cannot follow yourself' }, { status: 400 });
+
+	if (!(await checkRateLimit(supabase, `follow:toggle:${user.id}`, { windowSeconds: 600, max: 30 }))) {
+		return rateLimitResponse();
+	}
 
 	const { data: existing } = await supabase
 		.from('follows')

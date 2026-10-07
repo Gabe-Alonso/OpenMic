@@ -1,5 +1,6 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
+import { checkRateLimit, rateLimitResponse } from '$lib/server/rateLimit';
 
 export const GET: RequestHandler = async ({ params, locals: { supabase, safeGetSession } }) => {
 	const { user } = await safeGetSession();
@@ -58,6 +59,10 @@ export const GET: RequestHandler = async ({ params, locals: { supabase, safeGetS
 export const POST: RequestHandler = async ({ params, request, locals: { supabase, safeGetSession } }) => {
 	const { user } = await safeGetSession();
 	if (!user) return json({ error: 'Unauthorized' }, { status: 401 });
+
+	if (!(await checkRateLimit(supabase, `comment:create:${user.id}`, { windowSeconds: 300, max: 20 }))) {
+		return rateLimitResponse();
+	}
 
 	const { content, parent_id } = await request.json();
 	if (!content?.trim()) return json({ error: 'Content required' }, { status: 400 });

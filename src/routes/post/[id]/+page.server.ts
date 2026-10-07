@@ -61,36 +61,45 @@ export const load: PageServerLoad = async ({ params, locals: { supabase, safeGet
 
 	const authorId = (post.profiles as any)?.id as string | undefined;
 
-	const [{ count: likeCount }, likerRes, likedRes, followersRes, followingRes, { count: commentCount }] = await Promise.all([
-		supabase
-			.from('post_likes')
-			.select('*', { count: 'exact', head: true })
-			.eq('post_id', params.id),
-		supabase
-			.from('post_likes')
-			.select('user_id, profiles(id, full_name, avatar_url)')
-			.eq('post_id', params.id)
-			.order('created_at', { ascending: false })
-			.limit(50),
-		user
-			? supabase
-					.from('post_likes')
-					.select('id')
-					.eq('post_id', params.id)
-					.eq('user_id', user.id)
-					.maybeSingle()
-			: Promise.resolve({ data: null }),
-		authorId
-			? supabase.from('follows').select('*', { count: 'exact', head: true }).eq('following_id', authorId)
-			: Promise.resolve({ count: 0 }),
-		authorId
-			? supabase.from('follows').select('*', { count: 'exact', head: true }).eq('follower_id', authorId)
-			: Promise.resolve({ count: 0 }),
-		supabase
-			.from('post_comments')
-			.select('*', { count: 'exact', head: true })
-			.eq('post_id', params.id)
-	]);
+	const [{ count: likeCount }, likerRes, likedRes, followersRes, followingRes, { count: commentCount }, reportedRes] =
+		await Promise.all([
+			supabase
+				.from('post_likes')
+				.select('*', { count: 'exact', head: true })
+				.eq('post_id', params.id),
+			supabase
+				.from('post_likes')
+				.select('user_id, profiles(id, full_name, avatar_url)')
+				.eq('post_id', params.id)
+				.order('created_at', { ascending: false })
+				.limit(50),
+			user
+				? supabase
+						.from('post_likes')
+						.select('id')
+						.eq('post_id', params.id)
+						.eq('user_id', user.id)
+						.maybeSingle()
+				: Promise.resolve({ data: null }),
+			authorId
+				? supabase.from('follows').select('*', { count: 'exact', head: true }).eq('following_id', authorId)
+				: Promise.resolve({ count: 0 }),
+			authorId
+				? supabase.from('follows').select('*', { count: 'exact', head: true }).eq('follower_id', authorId)
+				: Promise.resolve({ count: 0 }),
+			supabase
+				.from('post_comments')
+				.select('*', { count: 'exact', head: true })
+				.eq('post_id', params.id),
+			user
+				? supabase
+						.from('reports')
+						.select('id')
+						.eq('post_id', params.id)
+						.eq('reporter_id', user.id)
+						.maybeSingle()
+				: Promise.resolve({ data: null })
+		]);
 
 	const mutuals =
 		user && authorId && user.id !== authorId
@@ -106,6 +115,7 @@ export const load: PageServerLoad = async ({ params, locals: { supabase, safeGet
 		authorFollowingCount: followingRes.count ?? 0,
 		mutuals,
 		commentCount: commentCount ?? 0,
-		currentUserId: user?.id ?? null
+		currentUserId: user?.id ?? null,
+		userReported: !!reportedRes.data
 	};
 };

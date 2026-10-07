@@ -6,7 +6,7 @@
 	import RichTextEditor from '$lib/components/RichTextEditor.svelte';
 	import TagInput from '$lib/components/TagInput.svelte';
 	import type { PageData } from './$types';
-	import DOMPurify from 'dompurify';
+	import DOMPurify from 'isomorphic-dompurify';
 
 	let { data }: { data: PageData } = $props();
 
@@ -156,6 +156,31 @@
 		creatorLiked: boolean;
 		replies: CommentData[];
 	};
+
+	// --- Report ---
+	let reported = $state(untrack(() => data.userReported));
+	let showReportModal = $state(false);
+	let reportReason = $state('spam');
+	let reportDetails = $state('');
+	let submittingReport = $state(false);
+
+	async function submitReport() {
+		if (submittingReport) return;
+		submittingReport = true;
+		const res = await fetch(`/api/posts/${post.id}/report`, {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ reason: reportReason, details: reportDetails.trim() || null })
+		});
+		if (res.ok) {
+			reported = true;
+			showReportModal = false;
+			reportDetails = '';
+		} else if (res.status === 401) {
+			goto('/signin');
+		}
+		submittingReport = false;
+	}
 
 	let showComments = $state(false);
 	let comments = $state<CommentData[]>([]);
@@ -393,6 +418,21 @@
 					{/if}
 				{/if}
 
+				{#if data.currentUserId && !isAuthor}
+					<button
+						class="report-btn"
+						class:reported
+						disabled={reported}
+						onclick={() => (showReportModal = true)}
+						title={reported ? 'Already reported' : 'Report this post'}
+					>
+						<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+							<path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/>
+						</svg>
+						{reported ? 'Reported' : 'Report'}
+					</button>
+				{/if}
+
 				<button class="share-btn" onclick={share} class:share-copied={copied}>
 					{#if copied}
 						<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
@@ -575,6 +615,53 @@
 						<span class="liker-name">{p?.full_name ?? 'Anonymous Artist'}</span>
 					</a>
 				{/each}
+			</div>
+		</div>
+	</div>
+{/if}
+
+<!-- Report modal -->
+{#if showReportModal}
+	<div class="modal-backdrop" onclick={() => (showReportModal = false)} role="presentation">
+		<div class="modal" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label="Report this post" tabindex="-1">
+			<div class="modal-header">
+				<h2>Report this post</h2>
+				<button class="modal-close" onclick={() => (showReportModal = false)} aria-label="Close">
+					<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+						<path d="M18 6 6 18M6 6l12 12" />
+					</svg>
+				</button>
+			</div>
+			<div class="report-form">
+				<label class="report-reason">
+					<input type="radio" name="report-reason" value="spam" bind:group={reportReason} />
+					Spam
+				</label>
+				<label class="report-reason">
+					<input type="radio" name="report-reason" value="harassment" bind:group={reportReason} />
+					Harassment
+				</label>
+				<label class="report-reason">
+					<input type="radio" name="report-reason" value="inappropriate" bind:group={reportReason} />
+					Inappropriate content
+				</label>
+				<label class="report-reason">
+					<input type="radio" name="report-reason" value="other" bind:group={reportReason} />
+					Other
+				</label>
+				<textarea
+					class="report-details"
+					bind:value={reportDetails}
+					placeholder="Additional details (optional)"
+					rows="3"
+					maxlength="1000"
+				></textarea>
+				<div class="report-form-actions">
+					<button class="edit-cancel" type="button" onclick={() => (showReportModal = false)}>Cancel</button>
+					<button class="delete-confirm-btn" type="button" onclick={submitReport} disabled={submittingReport}>
+						{submittingReport ? 'Submitting…' : 'Submit report'}
+					</button>
+				</div>
 			</div>
 		</div>
 	</div>
@@ -915,6 +1002,75 @@
 		font-weight: 600;
 		color: var(--color-text-muted);
 		padding: 4px 6px;
+	}
+
+	.report-btn {
+		display: flex;
+		align-items: center;
+		gap: 6px;
+		background: none;
+		border: 1.5px solid var(--color-border-strong);
+		border-radius: var(--radius-pill);
+		padding: 7px 14px;
+		font-size: 0.8rem;
+		font-weight: 600;
+		color: var(--color-text-muted);
+		cursor: pointer;
+		transition: border-color 0.15s, color 0.15s, background 0.15s;
+	}
+
+	.report-btn:hover:not(:disabled) {
+		border-color: var(--color-danger-border);
+		color: var(--color-danger);
+		background: var(--color-danger-bg);
+	}
+
+	.report-btn.reported {
+		border-color: var(--color-danger-border);
+		color: var(--color-danger);
+		cursor: default;
+	}
+
+	.report-form {
+		display: flex;
+		flex-direction: column;
+		gap: 10px;
+		padding: 16px 20px;
+	}
+
+	.report-reason {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		font-size: 0.88rem;
+		color: var(--color-text);
+		cursor: pointer;
+	}
+
+	.report-details {
+		padding: 9px 14px;
+		border: 1.5px solid var(--color-border);
+		border-radius: var(--radius-md);
+		font-size: 0.875rem;
+		font-family: inherit;
+		color: var(--color-text);
+		background: var(--color-surface-tint);
+		resize: vertical;
+		outline: none;
+		transition: border-color 0.15s, box-shadow 0.15s;
+	}
+
+	.report-details:focus {
+		border-color: var(--color-primary);
+		background: var(--color-surface);
+		box-shadow: 0 0 0 3px rgba(167, 139, 250, 0.35);
+	}
+
+	.report-form-actions {
+		display: flex;
+		gap: 8px;
+		justify-content: flex-end;
+		margin-top: 4px;
 	}
 
 	.share-btn {
