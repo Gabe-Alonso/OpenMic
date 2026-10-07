@@ -84,7 +84,11 @@ describe.skipIf(!configured)('message permissions (integration)', () => {
 				})
 			)
 		);
-		expect(res.status).toBe(403);
+		// Not 403: the route's own first step reads the conversation, and RLS
+		// already hides it from a non-participant, so the route never gets far
+		// enough to tell them "forbidden" — it just reports 404, which also
+		// avoids confirming the conversation exists to someone who can't see it.
+		expect(res.status).toBe(404);
 	});
 
 	it('refuses to let the sender accept their own request', async () => {
@@ -138,7 +142,9 @@ describe.skipIf(!configured)('message permissions (integration)', () => {
 				})
 			)
 		);
-		expect(res.status).toBe(403);
+		// Same reasoning as above: RLS hides the now-accepted conversation from
+		// a non-participant before the route's own participant check runs.
+		expect(res.status).toBe(404);
 	});
 
 	it('blocks a direct database read of the conversation by a non-participant', async () => {
