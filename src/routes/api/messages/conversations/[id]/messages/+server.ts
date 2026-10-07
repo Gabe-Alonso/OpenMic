@@ -1,9 +1,14 @@
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
+import { checkRateLimit } from '$lib/server/rateLimit';
 
 export const POST: RequestHandler = async ({ params, request, locals: { supabase, safeGetSession } }) => {
 	const { user } = await safeGetSession();
 	if (!user) throw error(401, 'Unauthorized');
+
+	if (!(await checkRateLimit(supabase, `message:send:${user.id}`, { windowSeconds: 300, max: 30 }))) {
+		throw error(429, 'Too many requests. Please slow down.');
+	}
 
 	const body = await request.json();
 	const { message_type, content, image_url, youtube_url } = body;

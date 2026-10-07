@@ -1,10 +1,15 @@
 import { json } from '@sveltejs/kit';
 import { logger } from '@sentry/sveltekit';
 import type { RequestHandler } from './$types';
+import { checkRateLimit, rateLimitResponse } from '$lib/server/rateLimit';
 
 export const POST: RequestHandler = async ({ request, locals: { supabase, safeGetSession } }) => {
 	const { user } = await safeGetSession();
 	if (!user) return json({ error: 'Unauthorized' }, { status: 401 });
+
+	if (!(await checkRateLimit(supabase, `post:create:${user.id}`, { windowSeconds: 600, max: 5 }))) {
+		return rateLimitResponse();
+	}
 
 	const { body, youtube_url, media, tags } = await request.json();
 

@@ -1,9 +1,14 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
+import { checkRateLimit, rateLimitResponse } from '$lib/server/rateLimit';
 
 export const POST: RequestHandler = async ({ params, locals: { supabase, safeGetSession } }) => {
 	const { user } = await safeGetSession();
 	if (!user) return json({ error: 'Unauthorized' }, { status: 401 });
+
+	if (!(await checkRateLimit(supabase, `like:toggle:${user.id}`, { windowSeconds: 60, max: 60 }))) {
+		return rateLimitResponse();
+	}
 
 	const { data: existing } = await supabase
 		.from('post_likes')
