@@ -1,8 +1,27 @@
 <script lang="ts">
+	import { untrack } from 'svelte';
 	import PostCard from '$lib/components/PostCard.svelte';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
+
+	let posts = $state<any[]>(untrack(() => data.posts));
+	let likeCounts = $state<Record<string, number>>(untrack(() => data.likeCounts));
+	let cursor = $state<string | null>(untrack(() => data.nextCursor));
+	let loadingMore = $state(false);
+
+	async function loadMore() {
+		if (!cursor || loadingMore) return;
+		loadingMore = true;
+		const res = await fetch(`/api/tags/${data.tag}?cursor=${encodeURIComponent(cursor)}`);
+		if (res.ok) {
+			const json = await res.json();
+			posts = [...posts, ...(json.posts ?? [])];
+			likeCounts = { ...likeCounts, ...(json.likeCounts ?? {}) };
+			cursor = json.nextCursor ?? null;
+		}
+		loadingMore = false;
+	}
 </script>
 
 <div class="tag-page">
@@ -18,10 +37,10 @@
 			<span class="eyebrow tag-eyebrow">Tag</span>
 			<h1 class="tag-badge">#<span class="accent">{data.tag}</span></h1>
 		</div>
-		<p class="tag-count">{data.posts.length} post{data.posts.length === 1 ? '' : 's'}</p>
+		<p class="tag-count">{posts.length} post{posts.length === 1 ? '' : 's'}</p>
 	</div>
 
-	{#if data.posts.length === 0}
+	{#if posts.length === 0}
 		<div class="empty-state">
 			<span class="empty-hash">#</span>
 			<h2 class="empty-title">No posts tagged #{data.tag} yet</h2>
@@ -30,10 +49,15 @@
 		</div>
 	{:else}
 		<div class="posts-grid">
-			{#each data.posts as post (post.id)}
-				<PostCard {post} likeCount={data.likeCounts[post.id] ?? 0} showAuthor={true} />
+			{#each posts as post (post.id)}
+				<PostCard {post} likeCount={likeCounts[post.id] ?? 0} showAuthor={true} />
 			{/each}
 		</div>
+		{#if cursor}
+			<button class="load-more-btn" onclick={loadMore} disabled={loadingMore}>
+				{loadingMore ? 'Loading…' : 'Load more'}
+			</button>
+		{/if}
 	{/if}
 </div>
 
@@ -188,5 +212,32 @@
 		.posts-grid {
 			grid-template-columns: 1fr;
 		}
+	}
+
+	.load-more-btn {
+		align-self: center;
+		margin: 8px auto 0;
+		display: block;
+		min-height: 44px;
+		padding: 0 28px;
+		border-radius: var(--radius-pill);
+		background: var(--color-surface);
+		border: 1.5px solid var(--color-border-strong);
+		color: var(--color-text-strong);
+		font-size: 0.875rem;
+		font-weight: 700;
+		cursor: pointer;
+		transition: border-color 0.15s, color 0.15s, background 0.15s;
+	}
+
+	.load-more-btn:hover:not(:disabled) {
+		border-color: var(--color-lilac);
+		color: var(--color-primary-deep);
+		background: var(--color-primary-light);
+	}
+
+	.load-more-btn:disabled {
+		opacity: 0.6;
+		cursor: default;
 	}
 </style>

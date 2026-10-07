@@ -1,11 +1,15 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
+import { decodeCursor, applyCursor, paginateRows } from '$lib/server/pagination';
+
+const PAGE_SIZE = 20;
 
 export const GET: RequestHandler = async ({ url, locals: { supabase, safeGetSession } }) => {
 	const { user } = await safeGetSession();
 	if (!user) return json({ error: 'Unauthorized' }, { status: 401 });
 
 	const includeFollowers = url.searchParams.get('include_followers') === 'true';
+	const cursor = decodeCursor(url.searchParams.get('cursor'));
 
 	const { data: followingRows } = await supabase
 		.from('follows')
@@ -23,17 +27,20 @@ export const GET: RequestHandler = async ({ url, locals: { supabase, safeGetSess
 	}
 
 	if (targetIds.size === 0) {
-		return json({ posts: [], likeCounts: {} });
+		return json({ posts: [], likeCounts: {}, nextCursor: null });
 	}
 
-	const { data: posts } = await supabase
+	let postsQuery = supabase
 		.from('posts')
 		.select('*, post_media(*), profiles(id, full_name, avatar_url)')
 		.in('author_id', [...targetIds])
 		.order('created_at', { ascending: false })
-		.limit(100);
+		.order('id', { ascending: false })
+		.limit(PAGE_SIZE + 1);
+	postsQuery = applyCursor(postsQuery, cursor);
 
-	const postsData = posts ?? [];
+	const { data: posts } = await postsQuery;
+	const { page: postsData, nextCursor } = paginateRows(posts ?? [], PAGE_SIZE);
 	const likeCounts: Record<string, number> = {};
 
 	if (postsData.length > 0) {
@@ -46,5 +53,5 @@ export const GET: RequestHandler = async ({ url, locals: { supabase, safeGetSess
 		}
 	}
 
-	return json({ posts: postsData, likeCounts });
+	return json({ posts: postsData, likeCounts, nextCursor });
 };

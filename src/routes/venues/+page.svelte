@@ -1,8 +1,7 @@
 <script lang="ts">
-	import { distanceMiles, radiusToZoom } from '$lib/geo';
+	import { radiusToZoom } from '$lib/geo';
 	import 'mapbox-gl/dist/mapbox-gl.css';
-	import { onMount, onDestroy } from 'svelte';
-	import { invalidateAll } from '$app/navigation';
+	import { onMount, untrack } from 'svelte';
 	import { PUBLIC_MAPBOX_TOKEN } from '$env/static/public';
 	import TagInput from '$lib/components/TagInput.svelte';
 	import type { PageData } from './$types';
@@ -11,29 +10,36 @@
 
 	let mapContainer: HTMLDivElement;
 	let map: any = null;
+	let mapboxgl: any = null;
 	let activeVenueId = $state<string | null>(null);
 	let importing = $state(false);
 	let importMsg = $state<string | null>(null);
 
+	// Fetched fresh per viewport/radius from the server instead of loading
+	// every venue (registered or seeded) on every page view — see
+	// src/routes/api/venues.
+	let registeredVenues = $state<any[]>([]);
+	let seededVenues = $state<any[]>([]);
+	let loadingVenues = $state(false);
+	let hasLoadedOnce = $state(false);
+
 	// Merge registered + seeded into a unified list
 	const allVenues = $derived([
-		...(data.registeredVenues as any[]).map((v) => ({ ...v, _source: 'registered', _id: v.id })),
-		...(data.seededVenues as any[]).map((v) => ({ ...v, _source: 'seeded', _id: v.id }))
+		...registeredVenues.map((v) => ({ ...v, _source: 'registered', _id: v.id })),
+		...seededVenues.map((v) => ({ ...v, _source: 'seeded', _id: v.id }))
 	]);
 
-	let visibleVenues = $state<any[]>([]);
 	let claimedOnly = $state(false);
 	let tagFilter = $state<string[]>([]);
 
+	// Tag filter narrows the list only, same as the Artists page — the map's
+	// dots and clusters reflect everything fetched for claimedOnly, not the
+	// tag-filtered subset.
 	const displayVenues = $derived(
 		tagFilter.length === 0
-			? visibleVenues
-			: visibleVenues.filter((v) => tagFilter.every((t) => ((v as any).tags ?? []).includes(t)))
+			? allVenues
+			: allVenues.filter((v) => tagFilter.every((t) => ((v as any).tags ?? []).includes(t)))
 	);
-
-	function isClaimed(v: any): boolean {
-		return v._source === 'registered' || !!v.claimed_profile_id;
-	}
 
 	// Search state
 	let searchInput = $state('');
@@ -54,38 +60,98 @@
 		return v._source === 'registered' ? v.location_lng : v.lng;
 	}
 
-	function filterByBounds() {
-		if (!map) return;
-		const bounds = map.getBounds();
-		visibleVenues = allVenues.filter(
-			(v) => bounds.contains([getLng(v), getLat(v)]) && (!claimedOnly || isClaimed(v))
-		);
+	function featuresFor(rows: any[]) {
+		return rows
+			.map((venue) => {
+				const lat = getLat(venue);
+				const lng = getLng(venue);
+				if (!lat || !lng) return null;
+				const displayName = venue._source === 'registered' ? (venue.full_name ?? 'Venue') : venue.name;
+				const displayLoc = venue._source === 'registered'
+					? (venue.location ?? '')
+					: [venue.address, venue.city].filter(Boolean).join(', ');
+				return {
+					type: 'Feature' as const,
+					geometry: { type: 'Point' as const, coordinates: [lng, lat] },
+					properties: {
+						_id: venue._id,
+						_source: venue._source,
+						id: venue.id,
+						name: displayName,
+						location: displayLoc,
+						claimed_profile_id: venue.claimed_profile_id ?? null
+					}
+				};
+			})
+			.filter(Boolean) as any[];
 	}
 
-	function filterByRadius(lat: number, lng: number, radius: number) {
-		visibleVenues = allVenues.filter(
-			(v) => distanceMiles(lat, lng, getLat(v), getLng(v)) <= radius && (!claimedOnly || isClaimed(v))
-		);
+	function updateMapSource() {
+		const source = map?.getSource('venues');
+		if (source) source.setData({ type: 'FeatureCollection', features: featuresFor(allVenues) });
+	}
+
+	// One fetch covers both modes this page supports: "what's in the current
+	// map viewport" and "what's within N miles of a searched location."
+	async function refreshVenues() {
+		if (!map) return;
+		loadingVenues = true;
+		const params = new URLSearchParams();
+		if (claimedOnly) params.set('claimedOnly', 'true');
+		if (searchLat !== null && searchLng !== null) {
+			params.set('lat', String(searchLat));
+			params.set('lng', String(searchLng));
+			params.set('radius', String(searchRadius));
+		} else {
+			const bounds = map.getBounds();
+			params.set('minLat', String(bounds.getSouth()));
+			params.set('maxLat', String(bounds.getNorth()));
+			params.set('minLng', String(bounds.getWest()));
+			params.set('maxLng', String(bounds.getEast()));
+		}
+		const res = await fetch(`/api/venues?${params}`);
+		if (res.ok) {
+			const json = await res.json();
+			registeredVenues = json.registeredVenues ?? [];
+			seededVenues = json.seededVenues ?? [];
+			updateMapSource();
+		}
+		hasLoadedOnce = true;
+		loadingVenues = false;
+	}
+
+	// Fits the map to the data once on load, using a lat/lng-only fetch so
+	// sizing the initial view doesn't cost the same as rendering it.
+	async function fitToExtent() {
+		const res = await fetch('/api/venues?extent=true');
+		if (!res.ok) return;
+		const { points } = await res.json();
+		if (!points || points.length === 0) return;
+		if (points.length === 1) {
+			map.jumpTo({ center: [points[0].location_lng, points[0].location_lat], zoom: 8 });
+			return;
+		}
+		const bounds = new mapboxgl.LngLatBounds();
+		for (const p of points) bounds.extend([p.location_lng, p.location_lat]);
+		map.fitBounds(bounds, { padding: 80, maxZoom: 10, animate: false });
 	}
 
 	$effect(() => {
 		const lat = searchLat;
 		const lng = searchLng;
 		const radius = searchRadius;
-		if (lat !== null && lng !== null) {
-			filterByRadius(lat, lng, radius);
-			map?.flyTo({ center: [lng, lat], zoom: radiusToZoom(radius) });
+		if (lat !== null && lng !== null && map) {
+			map.flyTo({ center: [lng, lat], zoom: radiusToZoom(radius) });
+			refreshVenues();
 		}
 	});
 
 	$effect(() => {
-		// Re-filter whenever claimedOnly changes
+		// Re-fetch whenever claimedOnly changes (it's a server-side filter now).
+		// hasLoadedOnce is read untracked so flipping it true after the first
+		// load doesn't itself re-trigger this effect.
 		void claimedOnly;
-		if (searchLat !== null && searchLng !== null) {
-			filterByRadius(searchLat, searchLng, searchRadius);
-		} else {
-			filterByBounds();
-		}
+		if (untrack(() => hasLoadedOnce)) refreshVenues();
 	});
 
 	async function fetchSearchSuggestions(q: string) {
@@ -120,7 +186,7 @@
 		searchLng = null;
 		searchSuggestions = [];
 		showSearchDropdown = false;
-		filterByBounds();
+		refreshVenues();
 	}
 
 	async function importVenues() {
@@ -136,7 +202,7 @@
 		if (res.ok) {
 			const { inserted } = await res.json();
 			importMsg = `Imported ${inserted} venue${inserted === 1 ? '' : 's'}.`;
-			await invalidateAll();
+			await refreshVenues();
 		} else {
 			importMsg = 'Import failed.';
 		}
@@ -144,48 +210,25 @@
 		setTimeout(() => { importMsg = null; }, 4000);
 	}
 
-	onMount(async () => {
-		const mapboxgl = (await import('mapbox-gl')).default;
-		mapboxgl.accessToken = PUBLIC_MAPBOX_TOKEN;
+	onMount(() => {
+		let destroyed = false;
 
-		map = new mapboxgl.Map({
-			container: mapContainer,
-			style: 'mapbox://styles/mapbox/light-v11',
-			center: [-98, 39],
-			zoom: 3.5
-		});
+		(async () => {
+			mapboxgl = (await import('mapbox-gl')).default;
+			if (destroyed) return;
+			mapboxgl.accessToken = PUBLIC_MAPBOX_TOKEN;
 
-		// Build GeoJSON features once — avoids 1000+ DOM markers
-		const features = allVenues
-			.map((venue) => {
-				const lat = getLat(venue);
-				const lng = getLng(venue);
-				if (!lat || !lng) return null;
-				const displayName = venue._source === 'registered' ? (venue.full_name ?? 'Venue') : venue.name;
-				const displayLoc = venue._source === 'registered'
-					? (venue.location ?? '')
-					: [venue.address, venue.city].filter(Boolean).join(', ');
-				return {
-					type: 'Feature' as const,
-					geometry: { type: 'Point' as const, coordinates: [lng, lat] },
-					properties: {
-						_id: venue._id,
-						_source: venue._source,
-						id: venue.id,
-						name: displayName,
-						location: displayLoc,
-						claimed_profile_id: venue.claimed_profile_id ?? null
-					}
-				};
-			})
-			.filter(Boolean) as any[];
+			map = new mapboxgl.Map({
+				container: mapContainer,
+				style: 'mapbox://styles/mapbox/light-v11',
+				center: [-98, 39],
+				zoom: 3.5
+			});
 
-		map.on('load', () => {
-			if (searchLat === null) filterByBounds();
-
+			map.on('load', () => {
 			map.addSource('venues', {
 				type: 'geojson',
-				data: { type: 'FeatureCollection', features },
+				data: { type: 'FeatureCollection', features: [] },
 				cluster: true,
 				clusterMaxZoom: 14,
 				clusterRadius: 50
@@ -288,20 +331,16 @@
 				map.on('mouseleave', layer, () => { map.getCanvas().style.cursor = ''; });
 			});
 
-			// Fit to all venues after map is ready
-			if (allVenues.length === 1) {
-				const v = allVenues[0];
-				map.flyTo({ center: [getLng(v), getLat(v)], zoom: 8 });
-			} else if (allVenues.length > 1) {
-				const bounds = new mapboxgl.LngLatBounds();
-				allVenues.forEach((v) => bounds.extend([getLng(v), getLat(v)]));
-				map.fitBounds(bounds, { padding: 80, maxZoom: 10 });
-			}
-		});
+				fitToExtent().then(() => refreshVenues());
+			});
 
-		map.on('moveend', () => { if (searchLat === null) filterByBounds(); });
+			map.on('moveend', () => { if (searchLat === null && hasLoadedOnce) refreshVenues(); });
+		})();
 
-		onDestroy(() => map.remove());
+		return () => {
+			destroyed = true;
+			map?.remove();
+		};
 	});
 </script>
 
@@ -400,19 +439,21 @@
 		<div class="list-header">
 			<h1>Venues</h1>
 			<p>
-				{displayVenues.length}
-				{displayVenues.length === 1 ? 'venue' : 'venues'}
-				{searchLat !== null ? `within ${searchRadius} miles` : 'in view'}
-				{tagFilter.length > 0 ? `matching ${tagFilter.length === 1 ? 'tag' : 'tags'}` : ''}
+				{#if loadingVenues}
+					Loading…
+				{:else}
+					{displayVenues.length}
+					{displayVenues.length === 1 ? 'venue' : 'venues'}
+					{searchLat !== null ? `within ${searchRadius} miles` : 'in view'}
+					{tagFilter.length > 0 ? `matching ${tagFilter.length === 1 ? 'tag' : 'tags'}` : ''}
+				{/if}
 			</p>
 		</div>
 
 		<div class="venue-list">
-			{#if allVenues.length === 0}
+			{#if !hasLoadedOnce}
 				<div class="empty-state">
-					<span class="empty-icon">🏛️</span>
-					<p class="empty-title">No venues yet</p>
-					<p class="empty-sub">Venues will appear here once they set their location or are imported from the map.</p>
+					<svg class="spin" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 2a10 10 0 0 1 10 10"/></svg>
 				</div>
 			{:else if displayVenues.length === 0}
 				<div class="empty-state">
@@ -1029,6 +1070,8 @@
 	}
 
 	.empty-icon { font-size: 2rem; margin-bottom: 4px; }
+	.spin { animation: spin 0.8s linear infinite; color: var(--color-text-muted); }
+	@keyframes spin { to { transform: rotate(360deg); } }
 	.empty-title { font-family: var(--font-display); font-size: 1rem; font-weight: 800; }
 	.empty-sub { font-size: 0.8rem; color: var(--color-text-muted); line-height: 1.5; max-width: 260px; }
 

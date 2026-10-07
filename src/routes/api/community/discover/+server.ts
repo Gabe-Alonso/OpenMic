@@ -1,19 +1,21 @@
-import type { PageServerLoad } from './$types';
-import { paginateRows } from '$lib/server/pagination';
+import { json } from '@sveltejs/kit';
+import type { RequestHandler } from './$types';
+import { decodeCursor, applyCursor, paginateRows } from '$lib/server/pagination';
 
 const PAGE_SIZE = 20;
 
-export const load: PageServerLoad = async ({ params, locals: { supabase } }) => {
-	const tag = params.tag.toLowerCase();
+export const GET: RequestHandler = async ({ url, locals: { supabase } }) => {
+	const cursor = decodeCursor(url.searchParams.get('cursor'));
 
-	const { data: posts } = await supabase
+	let query = supabase
 		.from('posts')
 		.select('*, post_media(*), profiles(id, full_name, avatar_url)')
-		.contains('tags', [tag])
 		.order('created_at', { ascending: false })
 		.order('id', { ascending: false })
 		.limit(PAGE_SIZE + 1);
+	query = applyCursor(query, cursor);
 
+	const { data: posts } = await query;
 	const { page: postsData, nextCursor } = paginateRows(posts ?? [], PAGE_SIZE);
 	const likeCounts: Record<string, number> = {};
 	const commentCounts: Record<string, number> = {};
@@ -38,5 +40,5 @@ export const load: PageServerLoad = async ({ params, locals: { supabase } }) => 
 		return scoreB - scoreA;
 	});
 
-	return { tag, posts: postsData, likeCounts, nextCursor };
+	return json({ posts: postsData, likeCounts, nextCursor });
 };
