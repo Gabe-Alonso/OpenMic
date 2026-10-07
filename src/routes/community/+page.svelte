@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { untrack } from 'svelte';
 	import { stripHtml, timeAgo } from '$lib/format';
 	import { goto } from '$app/navigation';
 	import PostCard from '$lib/components/PostCard.svelte';
@@ -15,41 +16,96 @@
 		following: 'Posts from people you follow.'
 	};
 
+	// --- Discover tab ---
+	// Seeded from the server-rendered first page; "Load more" pages forward
+	// from there using a cursor instead of re-fetching everything.
+	let discoverPosts = $state<any[]>(untrack(() => data.discoverPosts));
+	let discoverLikeCounts = $state<Record<string, number>>(untrack(() => data.likeCounts));
+	let discoverCursor = $state<string | null>(untrack(() => data.discoverNextCursor));
+	let discoverLoadingMore = $state(false);
+
 	// --- Local tab ---
 	const RADIUS_OPTIONS = [10, 25, 50, 100, 250];
 	let localRadius = $state(50);
 	let localLoading = $state(false);
 	let localPosts = $state<any[] | null>(null);
 	let localLikeCounts = $state<Record<string, number>>({});
+	let localCursor = $state<string | null>(null);
+	let localLoadingMore = $state(false);
 
 	// --- Following tab ---
 	let followingLoading = $state(false);
 	let followingPosts = $state<any[] | null>(null);
 	let followingLikeCounts = $state<Record<string, number>>({});
+	let followingCursor = $state<string | null>(null);
+	let followingLoadingMore = $state(false);
 	let includeFollowers = $state(false);
+
+	async function loadMoreDiscover() {
+		if (!discoverCursor || discoverLoadingMore) return;
+		discoverLoadingMore = true;
+		const res = await fetch(`/api/community/discover?cursor=${encodeURIComponent(discoverCursor)}`);
+		if (res.ok) {
+			const json = await res.json();
+			discoverPosts = [...discoverPosts, ...(json.posts ?? [])];
+			discoverLikeCounts = { ...discoverLikeCounts, ...(json.likeCounts ?? {}) };
+			discoverCursor = json.nextCursor ?? null;
+		}
+		discoverLoadingMore = false;
+	}
 
 	async function loadLocal() {
 		localLoading = true;
+		localCursor = null;
 		const res = await fetch(`/api/community/local?radius=${localRadius}`);
 		if (res.ok) {
 			const json = await res.json();
 			localPosts = json.posts ?? [];
 			localLikeCounts = json.likeCounts ?? {};
+			localCursor = json.nextCursor ?? null;
 		}
 		localLoading = false;
 	}
 
+	async function loadMoreLocal() {
+		if (!localCursor || localLoadingMore) return;
+		localLoadingMore = true;
+		const res = await fetch(`/api/community/local?radius=${localRadius}&cursor=${encodeURIComponent(localCursor)}`);
+		if (res.ok) {
+			const json = await res.json();
+			localPosts = [...(localPosts ?? []), ...(json.posts ?? [])];
+			localLikeCounts = { ...localLikeCounts, ...(json.likeCounts ?? {}) };
+			localCursor = json.nextCursor ?? null;
+		}
+		localLoadingMore = false;
+	}
+
 	async function loadFollowing() {
 		followingLoading = true;
+		followingCursor = null;
 		const res = await fetch(`/api/community/following?include_followers=${includeFollowers}`);
 		if (res.ok) {
 			const json = await res.json();
 			followingPosts = json.posts ?? [];
 			followingLikeCounts = json.likeCounts ?? {};
+			followingCursor = json.nextCursor ?? null;
 		} else if (res.status === 401) {
 			goto('/signin');
 		}
 		followingLoading = false;
+	}
+
+	async function loadMoreFollowing() {
+		if (!followingCursor || followingLoadingMore) return;
+		followingLoadingMore = true;
+		const res = await fetch(`/api/community/following?include_followers=${includeFollowers}&cursor=${encodeURIComponent(followingCursor)}`);
+		if (res.ok) {
+			const json = await res.json();
+			followingPosts = [...(followingPosts ?? []), ...(json.posts ?? [])];
+			followingLikeCounts = { ...followingLikeCounts, ...(json.likeCounts ?? {}) };
+			followingCursor = json.nextCursor ?? null;
+		}
+		followingLoadingMore = false;
 	}
 
 	function switchTab(tab: Tab) {
@@ -72,8 +128,8 @@
 		await loadFollowing();
 	}
 
-	const featuredPost = $derived(activeTab === 'discover' && data.discoverPosts.length > 0 ? data.discoverPosts[0] : null);
-	const restPosts = $derived(activeTab === 'discover' ? data.discoverPosts.slice(1) : []);
+	const featuredPost = $derived(activeTab === 'discover' && discoverPosts.length > 0 ? discoverPosts[0] : null);
+	const restPosts = $derived(activeTab === 'discover' ? discoverPosts.slice(1) : []);
 </script>
 
 <div class="community-page">
@@ -132,7 +188,7 @@
 
 	<!-- DISCOVER TAB -->
 	{#if activeTab === 'discover'}
-		{#if data.discoverPosts.length === 0}
+		{#if discoverPosts.length === 0}
 			<div class="empty-state">
 				<span class="empty-icon-chip">
 					<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
@@ -165,7 +221,7 @@
 								<span>{timeAgo(featuredPost.created_at)}</span>
 								<span class="featured-likes">
 									<svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></svg>
-									{data.likeCounts[featuredPost.id] ?? 0}
+									{discoverLikeCounts[featuredPost.id] ?? 0}
 								</span>
 							</div>
 						</div>
@@ -179,9 +235,14 @@
 					</a>
 				{/if}
 				{#each restPosts as post (post.id)}
-					<PostCard {post} likeCount={data.likeCounts[post.id] ?? 0} showAuthor={true} />
+					<PostCard {post} likeCount={discoverLikeCounts[post.id] ?? 0} showAuthor={true} />
 				{/each}
 			</div>
+			{#if discoverCursor}
+				<button class="load-more-btn" onclick={loadMoreDiscover} disabled={discoverLoadingMore}>
+					{discoverLoadingMore ? 'Loading…' : 'Load more'}
+				</button>
+			{/if}
 		{/if}
 
 	<!-- LOCAL TAB -->
@@ -219,6 +280,11 @@
 					<PostCard {post} likeCount={localLikeCounts[post.id] ?? 0} showAuthor={true} />
 				{/each}
 			</div>
+			{#if localCursor}
+				<button class="load-more-btn" onclick={loadMoreLocal} disabled={localLoadingMore}>
+					{localLoadingMore ? 'Loading…' : 'Load more'}
+				</button>
+			{/if}
 		{/if}
 
 	<!-- FOLLOWING TAB -->
@@ -249,6 +315,11 @@
 					<PostCard {post} likeCount={followingLikeCounts[post.id] ?? 0} showAuthor={true} />
 				{/each}
 			</div>
+			{#if followingCursor}
+				<button class="load-more-btn" onclick={loadMoreFollowing} disabled={followingLoadingMore}>
+					{followingLoadingMore ? 'Loading…' : 'Load more'}
+				</button>
+			{/if}
 		{/if}
 	{/if}
 </div>
@@ -675,5 +746,31 @@
 		.deco-ring-a, .deco-ring-b {
 			display: none;
 		}
+	}
+
+	.load-more-btn {
+		align-self: center;
+		margin-top: 4px;
+		min-height: 44px;
+		padding: 0 28px;
+		border-radius: var(--radius-pill);
+		background: var(--color-surface);
+		border: 1.5px solid var(--color-border-strong);
+		color: var(--color-text-strong);
+		font-size: 0.875rem;
+		font-weight: 700;
+		cursor: pointer;
+		transition: border-color 0.15s, color 0.15s, background 0.15s;
+	}
+
+	.load-more-btn:hover:not(:disabled) {
+		border-color: var(--color-lilac);
+		color: var(--color-primary-deep);
+		background: var(--color-primary-light);
+	}
+
+	.load-more-btn:disabled {
+		opacity: 0.6;
+		cursor: default;
 	}
 </style>

@@ -1,16 +1,21 @@
 <script lang="ts">
-	import { distanceMiles, radiusToZoom } from '$lib/geo';
+	import { radiusToZoom } from '$lib/geo';
 	import 'mapbox-gl/dist/mapbox-gl.css';
-	import { onMount, onDestroy } from 'svelte';
+	import { onMount } from 'svelte';
 	import { PUBLIC_MAPBOX_TOKEN } from '$env/static/public';
 	import TagInput from '$lib/components/TagInput.svelte';
-	import type { PageData } from './$types';
-
-	let { data }: { data: PageData } = $props();
 
 	let mapContainer: HTMLDivElement;
 	let map: any = null;
-	let visibleArtists = $state(data.artists);
+	let mapboxgl: any = null;
+
+	// Fetched fresh per viewport/radius from the server instead of loading
+	// every discoverable artist on every page view — see src/routes/api/artists.
+	let artists = $state<any[]>([]);
+	let followerCounts = $state<Record<string, number>>({});
+	let loadingArtists = $state(false);
+	let hasLoadedOnce = $state(false);
+
 	let activeArtistId = $state<string | null>(null);
 	let tagFilter = $state<string[]>([]);
 	let roleFilter = $state<string[]>([]);
@@ -25,8 +30,10 @@
 		}
 	}
 
+	// Tag/role filters narrow the list only, same as before this change — the
+	// map's dots and clusters reflect everything in view, not the filtered set.
 	const displayArtists = $derived(
-		visibleArtists.filter((a) => {
+		artists.filter((a) => {
 			if (tagFilter.length > 0 && !tagFilter.every((t) => ((a as any).tags ?? []).includes(t))) return false;
 			if (roleFilter.length > 0) {
 				const roles: string[] = (a as any).artist_roles ?? [];
@@ -47,18 +54,62 @@
 
 	const RADIUS_OPTIONS = [10, 25, 50, 100, 250];
 
-	function filterByBounds() {
-		if (!map) return;
-		const bounds = map.getBounds();
-		visibleArtists = data.artists.filter((a) =>
-			bounds.contains([a.location_lng!, a.location_lat!])
-		);
+	function featuresFor(rows: any[]) {
+		return rows.map((artist) => ({
+			type: 'Feature' as const,
+			geometry: { type: 'Point' as const, coordinates: [artist.location_lng, artist.location_lat] },
+			properties: { id: artist.id, name: artist.full_name ?? 'Artist', location: artist.location ?? '' }
+		}));
 	}
 
-	function filterByRadius(lat: number, lng: number, radius: number) {
-		visibleArtists = data.artists.filter(
-			(a) => distanceMiles(lat, lng, a.location_lat!, a.location_lng!) <= radius
-		);
+	function updateMapSource() {
+		const source = map?.getSource('artists');
+		if (source) source.setData({ type: 'FeatureCollection', features: featuresFor(artists) });
+	}
+
+	// One fetch covers both modes this page supports: "what's in the current
+	// map viewport" and "what's within N miles of a searched location."
+	async function refreshArtists() {
+		if (!map) return;
+		loadingArtists = true;
+		const params = new URLSearchParams();
+		if (searchLat !== null && searchLng !== null) {
+			params.set('lat', String(searchLat));
+			params.set('lng', String(searchLng));
+			params.set('radius', String(searchRadius));
+		} else {
+			const bounds = map.getBounds();
+			params.set('minLat', String(bounds.getSouth()));
+			params.set('maxLat', String(bounds.getNorth()));
+			params.set('minLng', String(bounds.getWest()));
+			params.set('maxLng', String(bounds.getEast()));
+		}
+		const res = await fetch(`/api/artists?${params}`);
+		if (res.ok) {
+			const json = await res.json();
+			artists = json.artists ?? [];
+			followerCounts = json.followerCounts ?? {};
+			updateMapSource();
+		}
+		hasLoadedOnce = true;
+		loadingArtists = false;
+	}
+
+	// Fits the map to the data once on load, using a lat/lng-only fetch (two
+	// floats per row, not full profiles) so sizing the initial view doesn't
+	// cost the same as rendering it.
+	async function fitToExtent() {
+		const res = await fetch('/api/artists?extent=true');
+		if (!res.ok) return;
+		const { points } = await res.json();
+		if (!points || points.length === 0) return;
+		if (points.length === 1) {
+			map.jumpTo({ center: [points[0].location_lng, points[0].location_lat], zoom: 8 });
+			return;
+		}
+		const bounds = new mapboxgl.LngLatBounds();
+		for (const p of points) bounds.extend([p.location_lng, p.location_lat]);
+		map.fitBounds(bounds, { padding: 80, maxZoom: 10, animate: false });
 	}
 
 	// Re-filter and re-center when radius changes while a location is active
@@ -66,9 +117,9 @@
 		const lat = searchLat;
 		const lng = searchLng;
 		const radius = searchRadius;
-		if (lat !== null && lng !== null) {
-			filterByRadius(lat, lng, radius);
-			map?.flyTo({ center: [lng, lat], zoom: radiusToZoom(radius) });
+		if (lat !== null && lng !== null && map) {
+			map.flyTo({ center: [lng, lat], zoom: radiusToZoom(radius) });
+			refreshArtists();
 		}
 	});
 
@@ -109,36 +160,28 @@
 		searchLng = null;
 		searchSuggestions = [];
 		showSearchDropdown = false;
-		filterByBounds();
+		refreshArtists();
 	}
 
-	onMount(async () => {
-		const mapboxgl = (await import('mapbox-gl')).default;
-		mapboxgl.accessToken = PUBLIC_MAPBOX_TOKEN;
+	onMount(() => {
+		let destroyed = false;
 
-		map = new mapboxgl.Map({
-			container: mapContainer,
-			style: 'mapbox://styles/mapbox/light-v11',
-			center: [-98, 39],
-			zoom: 3.5
-		});
+		(async () => {
+			mapboxgl = (await import('mapbox-gl')).default;
+			if (destroyed) return;
+			mapboxgl.accessToken = PUBLIC_MAPBOX_TOKEN;
 
-		const features = data.artists.map((artist) => ({
-			type: 'Feature' as const,
-			geometry: { type: 'Point' as const, coordinates: [artist.location_lng!, artist.location_lat!] },
-			properties: {
-				id: artist.id,
-				name: artist.full_name ?? 'Artist',
-				location: artist.location ?? ''
-			}
-		}));
+			map = new mapboxgl.Map({
+				container: mapContainer,
+				style: 'mapbox://styles/mapbox/light-v11',
+				center: [-98, 39],
+				zoom: 3.5
+			});
 
-		map.on('load', () => {
-			if (searchLat === null) filterByBounds();
-
+			map.on('load', () => {
 			map.addSource('artists', {
 				type: 'geojson',
-				data: { type: 'FeatureCollection', features },
+				data: { type: 'FeatureCollection', features: [] },
 				cluster: true,
 				clusterMaxZoom: 14,
 				clusterRadius: 50
@@ -223,19 +266,16 @@
 				map.on('mouseleave', layer, () => { map.getCanvas().style.cursor = ''; });
 			});
 
-			// Fit to all artists after map is ready
-			if (data.artists.length === 1) {
-				map.flyTo({ center: [data.artists[0].location_lng!, data.artists[0].location_lat!], zoom: 8 });
-			} else if (data.artists.length > 1) {
-				const bounds = new mapboxgl.LngLatBounds();
-				data.artists.forEach((a) => bounds.extend([a.location_lng!, a.location_lat!]));
-				map.fitBounds(bounds, { padding: 80, maxZoom: 10 });
-			}
+			fitToExtent().then(() => refreshArtists());
 		});
 
-		map.on('moveend', () => { if (searchLat === null) filterByBounds(); });
+			map.on('moveend', () => { if (searchLat === null && hasLoadedOnce) refreshArtists(); });
+		})();
 
-		onDestroy(() => map.remove());
+		return () => {
+			destroyed = true;
+			map?.remove();
+		};
 	});
 </script>
 
@@ -318,19 +358,21 @@
 		<div class="list-header">
 			<h1>Artists</h1>
 			<p>
-				{displayArtists.length}
-				{displayArtists.length === 1 ? 'artist' : 'artists'}
-				{searchLat !== null ? `within ${searchRadius} miles` : 'in view'}
-				{tagFilter.length > 0 ? `matching ${tagFilter.length === 1 ? 'tag' : 'tags'}` : ''}
+				{#if loadingArtists}
+					Loading…
+				{:else}
+					{displayArtists.length}
+					{displayArtists.length === 1 ? 'artist' : 'artists'}
+					{searchLat !== null ? `within ${searchRadius} miles` : 'in view'}
+					{tagFilter.length > 0 ? `matching ${tagFilter.length === 1 ? 'tag' : 'tags'}` : ''}
+				{/if}
 			</p>
 		</div>
 
 		<div class="artist-list">
-			{#if data.artists.length === 0}
+			{#if !hasLoadedOnce}
 				<div class="empty-state">
-					<span class="empty-icon">🎵</span>
-					<p class="empty-title">No artists yet</p>
-					<p class="empty-sub">Artists will appear here once they set their location and make themselves discoverable.</p>
+					<svg class="spin" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 2a10 10 0 0 1 10 10"/></svg>
 				</div>
 			{:else if displayArtists.length === 0}
 				<div class="empty-state">
@@ -361,7 +403,7 @@
 						</div>
 						<div class="artist-info">
 							<p class="artist-name">{artist.full_name ?? 'Anonymous Artist'}</p>
-							<p class="artist-followers">{data.followerCounts[artist.id] ?? 0} followers</p>
+							<p class="artist-followers">{followerCounts[artist.id] ?? 0} followers</p>
 							{#if artist.location}
 								<p class="artist-location">{artist.location}</p>
 							{/if}
@@ -788,6 +830,15 @@
 		gap: 6px;
 		padding: 48px 20px;
 		text-align: center;
+	}
+
+	.spin {
+		animation: spin 0.8s linear infinite;
+		color: var(--color-text-muted);
+	}
+
+	@keyframes spin {
+		to { transform: rotate(360deg); }
 	}
 
 	.empty-icon {
