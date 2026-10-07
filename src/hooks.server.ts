@@ -1,8 +1,25 @@
+import * as Sentry from '@sentry/sveltekit';
+import { sequence } from '@sveltejs/kit/hooks';
 import { createServerClient } from '@supabase/ssr';
 import { PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY } from '$env/static/public';
+import { env } from '$env/dynamic/public';
+import { dev } from '$app/environment';
 import type { Handle } from '@sveltejs/kit';
 
-export const handle: Handle = async ({ event, resolve }) => {
+// PUBLIC_SENTRY_DSN is read dynamically, not from $env/static/public like the
+// other PUBLIC_ vars here, so the app (and svelte-check) keeps working for
+// anyone who hasn't set up a Sentry project yet — error reporting is an
+// enhancement, not something the app should hard-require to boot.
+if (env.PUBLIC_SENTRY_DSN) {
+	Sentry.init({
+		dsn: env.PUBLIC_SENTRY_DSN,
+		environment: dev ? 'development' : 'production',
+		tracesSampleRate: 0.2,
+		integrations: [Sentry.consoleLoggingIntegration()]
+	});
+}
+
+const supabaseHandle: Handle = async ({ event, resolve }) => {
 	event.locals.supabase = createServerClient(PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY, {
 		cookies: {
 			getAll() {
@@ -31,3 +48,6 @@ export const handle: Handle = async ({ event, resolve }) => {
 		}
 	});
 };
+
+export const handle = sequence(Sentry.sentryHandle(), supabaseHandle);
+export const handleError = Sentry.handleErrorWithSentry();

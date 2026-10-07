@@ -1,4 +1,5 @@
 import { json, error } from '@sveltejs/kit';
+import { logger } from '@sentry/sveltekit';
 import type { RequestHandler } from './$types';
 import { PRIVATE_ADMIN_EMAIL, SUPABASE_SERVICE_ROLE_KEY } from '$env/static/private';
 import { PUBLIC_SUPABASE_URL } from '$env/static/public';
@@ -64,6 +65,8 @@ out center body;
 
 		if (!upsertErr) inserted++;
 	}
+
+	logger.info('admin seeded venues', { adminId: user.id, inserted, total: elements.length, lat, lng, radius_km });
 
 	return json({ inserted, total: elements.length });
 };

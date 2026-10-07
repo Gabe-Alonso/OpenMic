@@ -1,4 +1,5 @@
 import { fail, redirect } from '@sveltejs/kit';
+import { logger } from '@sentry/sveltekit';
 import { createClient } from '@supabase/supabase-js';
 import { SUPABASE_SERVICE_ROLE_KEY } from '$env/static/private';
 import { PUBLIC_SUPABASE_URL } from '$env/static/public';
@@ -180,6 +181,9 @@ export const actions: Actions = {
 		const { error } = await adminClient.auth.admin.deleteUser(user.id);
 
 		if (error) return fail(500, { deleteError: error.message });
+
+		logger.warn('account deleted', { userId: user.id });
+
 		throw redirect(303, '/');
 	}
 };

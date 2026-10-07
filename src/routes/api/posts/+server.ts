@@ -1,4 +1,5 @@
 import { json } from '@sveltejs/kit';
+import { logger } from '@sentry/sveltekit';
 import type { RequestHandler } from './$types';
 
 export const POST: RequestHandler = async ({ request, locals: { supabase, safeGetSession } }) => {
@@ -46,6 +47,15 @@ export const POST: RequestHandler = async ({ request, locals: { supabase, safeGe
 		);
 		if (mediaError) return json({ error: mediaError.message }, { status: 500 });
 	}
+
+	logger.info('post created', {
+		postId: post.id,
+		authorId: user.id,
+		hasBody: !!body,
+		hasYoutube: !!youtube_url,
+		mediaCount: media?.length ?? 0,
+		tagCount: validatedTags.length
+	});
 
 	return json({ id: post.id });
 };
