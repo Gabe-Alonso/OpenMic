@@ -235,13 +235,13 @@
 				</div>
 			</div>
 		{:else}
-			<a href="/profile/{data.otherProfile.id}" class="other-profile">
-				{#if data.otherProfile.avatar_url}
-					<img src={data.otherProfile.avatar_url} alt={data.otherProfile.full_name ?? 'User'} class="header-avatar" />
+			<a href="/profile/{data.otherProfile?.id}" class="other-profile">
+				{#if data.otherProfile?.avatar_url}
+					<img src={data.otherProfile?.avatar_url} alt={data.otherProfile?.full_name ?? 'User'} class="header-avatar" />
 				{:else}
-					<div class="header-avatar avatar-placeholder">{(data.otherProfile.full_name ?? '?')[0].toUpperCase()}</div>
+					<div class="header-avatar avatar-placeholder">{(data.otherProfile?.full_name ?? '?')[0].toUpperCase()}</div>
 				{/if}
-				<span class="header-name">{data.otherProfile.full_name ?? 'Unknown'}</span>
+				<span class="header-name">{data.otherProfile?.full_name ?? 'Unknown'}</span>
 			</a>
 		{/if}
 	</div>
@@ -249,7 +249,7 @@
 	<!-- Message request banners (DM only) -->
 	{#if isRecipientOfRequest}
 		<div class="request-banner">
-			<span><strong>{data.otherProfile.full_name ?? 'Someone'}</strong> wants to message you.</span>
+			<span><strong>{data.otherProfile?.full_name ?? 'Someone'}</strong> wants to message you.</span>
 			<button class="accept-btn" onclick={acceptRequest}>Accept</button>
 		</div>
 		{#if acceptError}
@@ -258,7 +258,7 @@
 	{/if}
 	{#if isSenderOfRequest}
 		<div class="request-banner muted">
-			Waiting for <strong>{data.otherProfile.full_name ?? 'them'}</strong> to accept your message request.
+			Waiting for <strong>{data.otherProfile?.full_name ?? 'them'}</strong> to accept your message request.
 		</div>
 	{/if}
 

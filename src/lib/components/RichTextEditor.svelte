@@ -26,20 +26,17 @@
 		ordered = editor.isActive('orderedList');
 	}
 
-	onMount(async () => {
-		const [{ Editor }, { default: StarterKit }] = await Promise.all([
-			import('@tiptap/core'),
-			import('@tiptap/starter-kit')
-		]);
-
-		editor = new Editor({
-			element: editorEl,
-			extensions: [StarterKit],
-			content: value,
-			editorProps: { attributes: { class: 'prose-content' } },
-			onUpdate: ({ editor: e }: any) => onchange?.(e.getHTML()),
-			onSelectionUpdate: sync,
-			onTransaction: sync
+	onMount(() => {
+		Promise.all([import('@tiptap/core'), import('@tiptap/starter-kit')]).then(([{ Editor }, { default: StarterKit }]) => {
+			editor = new Editor({
+				element: editorEl,
+				extensions: [StarterKit],
+				content: value,
+				editorProps: { attributes: { class: 'prose-content' } },
+				onUpdate: ({ editor: e }: any) => onchange?.(e.getHTML()),
+				onSelectionUpdate: sync,
+				onTransaction: sync
+			});
 		});
 
 		return () => editor?.destroy();
