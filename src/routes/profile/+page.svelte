@@ -2,6 +2,7 @@
 	import { enhance } from '$app/forms';
 	import { invalidateAll } from '$app/navigation';
 	import { createClient } from '$lib/supabase';
+	import { resizeImage } from '$lib/resizeImage';
 	import LocationSearch from '$lib/components/LocationSearch.svelte';
 	import TagInput from '$lib/components/TagInput.svelte';
 	import PostCard from '$lib/components/PostCard.svelte';
@@ -122,14 +123,16 @@
 
 		avatarError = null;
 		avatarUploading = true;
-		avatarPreview = URL.createObjectURL(file);
 
-		const ext = file.name.split('.').pop()?.toLowerCase() ?? 'jpg';
+		const resized = await resizeImage(file, 512); // avatars never render larger than a few hundred px
+		avatarPreview = URL.createObjectURL(resized);
+
+		const ext = resized.name.split('.').pop()?.toLowerCase() ?? 'jpg';
 		const path = `${data.user.id}/avatar.${ext}`;
 
 		const { error: uploadError } = await supabase.storage
 			.from('avatars')
-			.upload(path, file, { upsert: true });
+			.upload(path, resized, { upsert: true });
 
 		if (uploadError) {
 			avatarError = uploadError.message;
@@ -167,14 +170,16 @@
 
 		bannerError = null;
 		bannerUploading = true;
-		bannerPreview = URL.createObjectURL(file);
 
-		const ext = file.name.split('.').pop()?.toLowerCase() ?? 'jpg';
+		const resized = await resizeImage(file);
+		bannerPreview = URL.createObjectURL(resized);
+
+		const ext = resized.name.split('.').pop()?.toLowerCase() ?? 'jpg';
 		const path = `${data.user.id}/banner.${ext}`;
 
 		const { error: uploadError } = await supabase.storage
 			.from('avatars')
-			.upload(path, file, { upsert: true });
+			.upload(path, resized, { upsert: true });
 
 		if (uploadError) {
 			bannerError = uploadError.message;
