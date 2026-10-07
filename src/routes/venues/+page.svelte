@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { distanceMiles, radiusToZoom } from '$lib/geo';
 	import 'mapbox-gl/dist/mapbox-gl.css';
 	import { onMount, onDestroy } from 'svelte';
 	import { invalidateAll } from '$app/navigation';
@@ -44,26 +45,6 @@
 	let debounceTimer: ReturnType<typeof setTimeout>;
 
 	const RADIUS_OPTIONS = [10, 25, 50, 100, 250];
-
-	function distanceMiles(lat1: number, lng1: number, lat2: number, lng2: number): number {
-		const R = 3958.8;
-		const dLat = ((lat2 - lat1) * Math.PI) / 180;
-		const dLng = ((lng2 - lng1) * Math.PI) / 180;
-		const a =
-			Math.sin(dLat / 2) ** 2 +
-			Math.cos((lat1 * Math.PI) / 180) *
-				Math.cos((lat2 * Math.PI) / 180) *
-				Math.sin(dLng / 2) ** 2;
-		return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-	}
-
-	function radiusToZoom(miles: number): number {
-		if (miles <= 10) return 11;
-		if (miles <= 25) return 10;
-		if (miles <= 50) return 9;
-		if (miles <= 100) return 8;
-		return 7;
-	}
 
 	function getLat(v: any): number {
 		return v._source === 'registered' ? v.location_lat : v.lat;
