@@ -178,6 +178,16 @@
 				zoom: 3.5
 			});
 
+			// Kick off data fetching now, in parallel with Mapbox's own style/tile
+			// load, instead of waiting for the 'load' event first. map.getBounds()
+			// only depends on center/zoom, which are set synchronously above, so
+			// this doesn't need the map to have finished loading. The immediate
+			// refreshArtists() paints cards fast using the default view; the
+			// extent-fit corrects the viewport (and refetches) once we know the
+			// data's real bounds.
+			refreshArtists();
+			fitToExtent().then(() => refreshArtists());
+
 			map.on('load', () => {
 			map.addSource('artists', {
 				type: 'geojson',
@@ -186,6 +196,7 @@
 				clusterMaxZoom: 14,
 				clusterRadius: 50
 			});
+			updateMapSource();
 
 			// Cluster bubbles
 			map.addLayer({
@@ -266,7 +277,6 @@
 				map.on('mouseleave', layer, () => { map.getCanvas().style.cursor = ''; });
 			});
 
-			fitToExtent().then(() => refreshArtists());
 		});
 
 			map.on('moveend', () => { if (searchLat === null && hasLoadedOnce) refreshArtists(); });
