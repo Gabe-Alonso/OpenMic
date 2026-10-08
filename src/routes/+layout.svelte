@@ -6,7 +6,7 @@
 	import type { User } from '@supabase/supabase-js';
 	import { createBrowserClient } from '@supabase/ssr';
 	import { PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY } from '$env/static/public';
-	import { stripHtml } from '$lib/format';
+	import { stripHtml, timeAgo } from '$lib/format';
 	import '../app.css';
 
 	let { children, data }: { children: any; data: LayoutData } = $props();
@@ -49,12 +49,50 @@
 					}
 				}
 			)
+			.on(
+				'postgres_changes',
+				{ event: 'INSERT', schema: 'public', table: 'notifications', filter: `recipient_id=eq.${data.user.id}` },
+				() => {
+					liveUnreadNotifCount += 1;
+				}
+			)
 			.subscribe();
 	});
 
 	onDestroy(() => {
 		realtimeChannel?.unsubscribe();
 	});
+
+	// Live notification count + dropdown — initialised from server, updated by Realtime
+	let liveUnreadNotifCount = $state(data.unreadNotificationCount ?? 0);
+	$effect(() => {
+		liveUnreadNotifCount = data.unreadNotificationCount ?? 0;
+	});
+	let showNotifications = $state(false);
+	let notifications = $state<any[]>([]);
+	let notifLoading = $state(false);
+
+	async function toggleNotifications() {
+		showNotifications = !showNotifications;
+		if (!showNotifications) return;
+		notifLoading = true;
+		const res = await fetch('/api/notifications');
+		if (res.ok) {
+			const json = await res.json();
+			notifications = (json.notifications ?? []).map((n: any) => ({ ...n, _wasUnread: !n.read_at }));
+		}
+		notifLoading = false;
+		if (liveUnreadNotifCount > 0) {
+			liveUnreadNotifCount = 0;
+			await fetch('/api/notifications', { method: 'PATCH' });
+		}
+	}
+
+	function handleNotifFocusOut(e: FocusEvent) {
+		if (!(e.currentTarget as Element).contains(e.relatedTarget as Node | null)) {
+			setTimeout(() => { showNotifications = false; }, 120);
+		}
+	}
 
 	function getInitial(user: User): string {
 		const name = user.user_metadata?.full_name as string | undefined;
@@ -270,6 +308,42 @@
 				</div>
 
 				{#if data.user}
+					<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+					<div class="notif-wrapper" onfocusout={handleNotifFocusOut}>
+						<button class="icon-btn" aria-label="Notifications" onclick={toggleNotifications}>
+							<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+								<path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+								<path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+							</svg>
+							{#if liveUnreadNotifCount > 0}
+								<span class="unread-dot"></span>
+							{/if}
+						</button>
+						{#if showNotifications}
+							<div class="search-dropdown notif-dropdown">
+								{#if notifLoading}
+									<p class="search-status">Loading…</p>
+								{:else if notifications.length === 0}
+									<p class="search-status">No notifications yet.</p>
+								{:else}
+									{#each notifications as n (n.id)}
+										<a
+											href={n.link ?? '#'}
+											class="result-item notif-item"
+											class:notif-unread={n._wasUnread}
+											onclick={() => (showNotifications = false)}
+										>
+											<div class="result-text">
+												<span class="result-name">{n.title}</span>
+												{#if n.body}<p class="result-sub">{n.body}</p>{/if}
+												<p class="result-sub notif-time">{timeAgo(n.created_at)}</p>
+											</div>
+										</a>
+									{/each}
+								{/if}
+							</div>
+						{/if}
+					</div>
 					<a href="/messages" class="icon-btn" aria-label="Messages">
 						<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
 							<path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
@@ -669,6 +743,29 @@
 		font-size: 0.825rem;
 		color: var(--color-text-muted);
 		margin: 0;
+	}
+
+	.notif-wrapper {
+		position: relative;
+	}
+
+	.notif-dropdown {
+		left: auto;
+		right: 0;
+		width: 320px;
+		max-width: calc(100vw - 32px);
+	}
+
+	.notif-item {
+		align-items: flex-start;
+	}
+
+	.notif-item.notif-unread {
+		background: var(--color-primary-light);
+	}
+
+	.notif-time {
+		margin-top: 2px;
 	}
 
 	/* Icon buttons (messages, avatar, generic profile, hamburger) */

@@ -3,6 +3,7 @@ import { logger } from '@sentry/sveltekit';
 import { createClient } from '@supabase/supabase-js';
 import { SUPABASE_SERVICE_ROLE_KEY } from '$env/static/private';
 import { PUBLIC_SUPABASE_URL } from '$env/static/public';
+import { notifyNearbyUsersOfEvent } from '$lib/server/notify';
 import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ locals: { safeGetSession, supabase } }) => {
@@ -115,40 +116,49 @@ export const actions: Actions = {
 		return {};
 	},
 
-	toggleEmailNotifications: async ({ request, locals: { supabase, safeGetSession } }) => {
+	updateNotificationPreferences: async ({ request, locals: { supabase, safeGetSession } }) => {
 		const { user } = await safeGetSession();
 		if (!user) throw redirect(303, '/signin');
 
 		const data = await request.formData();
-		const emailNotificationsEnabled = data.has('email_notifications_enabled');
+		const types = ['new_follower', 'new_comment', 'band_join_request', 'band_join_accepted', 'nearby_event'];
+		const preferences: Record<string, { email: boolean; in_app: boolean }> = {};
+		for (const type of types) {
+			preferences[type] = { email: data.has(`${type}_email`), in_app: data.has(`${type}_in_app`) };
+		}
 
 		const { error } = await supabase
 			.from('profiles')
-			.update({ email_notifications_enabled: emailNotificationsEnabled, updated_at: new Date().toISOString() })
+			.update({ notification_preferences: preferences, updated_at: new Date().toISOString() })
 			.eq('id', user.id);
 
 		if (error) return fail(500, { toggleError: error.message });
 		return {};
 	},
 
-	createEvent: async ({ request, locals: { supabase, safeGetSession } }) => {
+	createEvent: async ({ request, url, locals: { supabase, safeGetSession } }) => {
 		const { user } = await safeGetSession();
 		if (!user) throw redirect(303, '/signin');
 		const data = await request.formData();
 		const title = data.get('title') as string;
 		const description = data.get('description') as string;
+		const date = data.get('date') as string;
 		if (!title?.trim()) return fail(400, { eventError: 'Title is required' });
 		if (title.length > 200) return fail(400, { eventError: 'Title must be 200 characters or fewer' });
 		if (description && description.length > 1000) return fail(400, { eventError: 'Description must be 1000 characters or fewer' });
 		const { error } = await supabase.from('venue_events').insert({
 			profile_id: user.id,
 			title,
-			date: data.get('date') as string,
+			date,
 			start_time: (data.get('start_time') as string) || null,
 			end_time: (data.get('end_time') as string) || null,
 			description: description || null
 		});
 		if (error) return fail(500, { eventError: error.message });
+
+		const { data: hostProfile } = await supabase.from('profiles').select('full_name').eq('id', user.id).maybeSingle();
+		await notifyNearbyUsersOfEvent(user.id, hostProfile?.full_name ?? 'Someone nearby', title, date, url.origin);
+
 		return { eventCreated: true };
 	},
 

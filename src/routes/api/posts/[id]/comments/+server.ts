@@ -1,7 +1,8 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { checkRateLimit, rateLimitResponse } from '$lib/server/rateLimit';
-import { notifyByEmail, newCommentEmail } from '$lib/server/email';
+import { newCommentEmail } from '$lib/server/email';
+import { notify } from '$lib/server/notify';
 
 export const GET: RequestHandler = async ({ params, locals: { supabase, safeGetSession } }) => {
 	const { user } = await safeGetSession();
@@ -86,7 +87,10 @@ export const POST: RequestHandler = async ({ params, request, url, locals: { sup
 	if (post && post.author_id !== user.id) {
 		const commenterName = (data.profiles as any)?.full_name ?? 'Someone';
 		const { subject, html } = newCommentEmail(commenterName, data.content, `${url.origin}/post/${params.id}`);
-		await notifyByEmail(post.author_id, subject, html);
+		await notify(post.author_id, 'new_comment', {
+			inApp: { title: `${commenterName} commented on your post`, body: data.content.slice(0, 200), link: `/post/${params.id}` },
+			email: { subject, html }
+		});
 	}
 
 	return json({

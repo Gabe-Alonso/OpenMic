@@ -5,7 +5,8 @@ import {
 	newCommentEmail,
 	bandJoinRequestEmail,
 	bandJoinAcceptedEmail,
-	notifyByEmail
+	nearbyEventEmail,
+	sendEmail
 } from './email';
 
 describe('escapeHtml', () => {
@@ -34,10 +35,19 @@ describe('email templates', () => {
 		expect(bandJoinRequestEmail('Jane', 'https://x.test/profile/1').html).toContain('https://x.test/profile/1');
 		expect(bandJoinAcceptedEmail('The Band', 'https://x.test/profile/1').html).toContain('https://x.test/profile/1');
 	});
+
+	it('nearbyEventEmail includes the host, title, date, and link', () => {
+		const { subject, html } = nearbyEventEmail('The Venue', 'Open Mic Night', '2026-05-01', 'https://x.test/profile/1');
+		expect(subject).toContain('Open Mic Night');
+		expect(html).toContain('The Venue');
+		expect(html).toContain('Open Mic Night');
+		expect(html).toContain('2026-05-01');
+		expect(html).toContain('https://x.test/profile/1');
+	});
 });
 
-describe('notifyByEmail', () => {
+describe('sendEmail', () => {
 	it('no-ops without throwing when RESEND_API_KEY is not configured (true for this test run)', async () => {
-		await expect(notifyByEmail('some-id', 'subject', '<p>html</p>')).resolves.toBeUndefined();
+		await expect(sendEmail('someone@example.com', 'subject', '<p>html</p>')).resolves.toBeUndefined();
 	});
 });

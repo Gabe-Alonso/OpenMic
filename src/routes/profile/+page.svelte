@@ -522,29 +522,54 @@
 			</form>
 		</div>
 
-		<div class="setting-row">
-			<div class="setting-info">
-				<p class="setting-label">Email Notifications</p>
-				<p class="setting-desc">
-					{(data.profile as any)?.email_notifications_enabled ?? true
-						? "We'll email you about new followers, comments, and band requests."
-						: "You won't receive any email notifications."}
-				</p>
+		<h3 class="notif-prefs-title">Notifications</h3>
+		<p class="setting-desc notif-prefs-desc">
+			Every notification can go out by email, show up in-app, both, or neither — toggle each independently.
+		</p>
+		<form method="POST" action="?/updateNotificationPreferences" use:enhance>
+			<div class="notif-pref-grid">
+				<div class="notif-pref-header">
+					<span></span>
+					<span>Email</span>
+					<span>In-app</span>
+				</div>
+				{#each [
+					{ key: 'new_follower', label: 'New followers' },
+					{ key: 'nearby_event', label: 'Events near you' },
+					{ key: 'new_comment', label: 'Comments on your posts' },
+					{ key: 'band_join_request', label: 'Band join requests' },
+					{ key: 'band_join_accepted', label: 'Band request accepted' }
+				] as pref}
+					{@const prefs = (data.profile as any)?.notification_preferences ?? {}}
+					{@const current = prefs[pref.key] ?? { email: true, in_app: true }}
+					<div class="notif-pref-row">
+						<span class="notif-pref-label">{pref.label}</span>
+						<label class="toggle-wrap toggle-sm">
+							<input
+								type="checkbox"
+								name="{pref.key}_email"
+								checked={current.email ?? true}
+								onchange={(e) => e.currentTarget.form?.requestSubmit()}
+							/>
+							<span class="toggle-track">
+								<span class="toggle-thumb"></span>
+							</span>
+						</label>
+						<label class="toggle-wrap toggle-sm">
+							<input
+								type="checkbox"
+								name="{pref.key}_in_app"
+								checked={current.in_app ?? true}
+								onchange={(e) => e.currentTarget.form?.requestSubmit()}
+							/>
+							<span class="toggle-track">
+								<span class="toggle-thumb"></span>
+							</span>
+						</label>
+					</div>
+				{/each}
 			</div>
-			<form method="POST" action="?/toggleEmailNotifications" use:enhance>
-				<label class="toggle-wrap">
-					<input
-						type="checkbox"
-						name="email_notifications_enabled"
-						checked={(data.profile as any)?.email_notifications_enabled ?? true}
-						onchange={(e) => e.currentTarget.form?.requestSubmit()}
-					/>
-					<span class="toggle-track">
-						<span class="toggle-thumb"></span>
-					</span>
-				</label>
-			</form>
-		</div>
+		</form>
 
 		<div class="danger-zone">
 			<h3 class="danger-title">Danger Zone</h3>
@@ -689,6 +714,70 @@
 	.card-title {
 		font-size: 1.625rem;
 		margin: 0 0 20px;
+	}
+
+	.notif-prefs-title {
+		font-size: 1rem;
+		font-weight: 700;
+		margin: 24px 0 2px;
+	}
+
+	.notif-prefs-desc {
+		margin-bottom: 10px;
+	}
+
+	.notif-pref-grid {
+		display: flex;
+		flex-direction: column;
+		gap: 2px;
+	}
+
+	.notif-pref-header,
+	.notif-pref-row {
+		display: grid;
+		grid-template-columns: 1fr 64px 64px;
+		align-items: center;
+		gap: 8px;
+		padding: 10px 4px;
+	}
+
+	.notif-pref-header {
+		font-size: 0.72rem;
+		font-weight: 700;
+		text-transform: uppercase;
+		letter-spacing: 0.04em;
+		color: var(--color-text-muted);
+	}
+
+	.notif-pref-header span:not(:first-child),
+	.notif-pref-row .toggle-wrap {
+		justify-self: center;
+	}
+
+	.notif-pref-row {
+		border-top: 1px solid var(--color-border);
+	}
+
+	.notif-pref-label {
+		font-size: 0.875rem;
+		font-weight: 600;
+		color: var(--color-text);
+	}
+
+	.toggle-sm {
+		width: 38px;
+		height: 21px;
+	}
+
+	.toggle-sm .toggle-thumb {
+		width: 15px;
+		height: 15px;
+		top: 3px;
+		left: 3px;
+	}
+
+	.toggle-sm input:checked + .toggle-track .toggle-thumb {
+		transform: translateX(17px);
 	}
 
 	/* Banner */
