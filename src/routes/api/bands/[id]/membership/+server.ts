@@ -1,7 +1,8 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
+import { notifyByEmail, bandJoinRequestEmail, bandJoinAcceptedEmail } from '$lib/server/email';
 
-export const POST: RequestHandler = async ({ params, locals: { supabase, safeGetSession } }) => {
+export const POST: RequestHandler = async ({ params, url, locals: { supabase, safeGetSession } }) => {
 	const { user } = await safeGetSession();
 	if (!user) return json({ error: 'Unauthorized' }, { status: 401 });
 	if (user.id === params.id) return json({ error: 'A band cannot join itself' }, { status: 400 });
@@ -18,10 +19,18 @@ export const POST: RequestHandler = async ({ params, locals: { supabase, safeGet
 		.insert({ band_id: params.id, member_id: user.id, status: 'pending' });
 	if (error) return json({ error: error.message }, { status: 403 });
 
+	const { data: requesterProfile } = await supabase
+		.from('profiles')
+		.select('full_name')
+		.eq('id', user.id)
+		.maybeSingle();
+	const { subject, html } = bandJoinRequestEmail(requesterProfile?.full_name ?? 'Someone', `${url.origin}/profile/${params.id}`);
+	await notifyByEmail(params.id, subject, html);
+
 	return json({ status: 'pending' });
 };
 
-export const PATCH: RequestHandler = async ({ params, request, locals: { supabase, safeGetSession } }) => {
+export const PATCH: RequestHandler = async ({ params, request, url, locals: { supabase, safeGetSession } }) => {
 	const { user } = await safeGetSession();
 	if (!user) return json({ error: 'Unauthorized' }, { status: 401 });
 	if (user.id !== params.id) return json({ error: 'Only the band account can accept members' }, { status: 403 });
@@ -35,6 +44,14 @@ export const PATCH: RequestHandler = async ({ params, request, locals: { supabas
 		.eq('band_id', params.id)
 		.eq('member_id', member_id);
 	if (error) return json({ error: error.message }, { status: 403 });
+
+	const { data: bandProfile } = await supabase
+		.from('profiles')
+		.select('full_name')
+		.eq('id', params.id)
+		.maybeSingle();
+	const { subject, html } = bandJoinAcceptedEmail(bandProfile?.full_name ?? 'The band', `${url.origin}/profile/${params.id}`);
+	await notifyByEmail(member_id, subject, html);
 
 	return json({ status: 'accepted' });
 };

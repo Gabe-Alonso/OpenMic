@@ -522,6 +522,30 @@
 			</form>
 		</div>
 
+		<div class="setting-row">
+			<div class="setting-info">
+				<p class="setting-label">Email Notifications</p>
+				<p class="setting-desc">
+					{(data.profile as any)?.email_notifications_enabled ?? true
+						? "We'll email you about new followers, comments, and band requests."
+						: "You won't receive any email notifications."}
+				</p>
+			</div>
+			<form method="POST" action="?/toggleEmailNotifications" use:enhance>
+				<label class="toggle-wrap">
+					<input
+						type="checkbox"
+						name="email_notifications_enabled"
+						checked={(data.profile as any)?.email_notifications_enabled ?? true}
+						onchange={(e) => e.currentTarget.form?.requestSubmit()}
+					/>
+					<span class="toggle-track">
+						<span class="toggle-thumb"></span>
+					</span>
+				</label>
+			</form>
+		</div>
+
 		<div class="danger-zone">
 			<h3 class="danger-title">Danger Zone</h3>
 			<p class="danger-desc">Permanently delete your account and all data. This cannot be undone.</p>
