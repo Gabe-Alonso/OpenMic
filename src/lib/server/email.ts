@@ -8,7 +8,7 @@ import { SUPABASE_SERVICE_ROLE_KEY } from '$env/static/private';
 // absent in CI/test and in local dev unless explicitly configured — so this
 // uses $env/dynamic/private (resolved at runtime) rather than
 // $env/static/private, which would require the var to exist at build time.
-const FROM_ADDRESS = 'OpenMic <onboarding@resend.dev>';
+const FROM_ADDRESS = 'OpenMic <notifications@openmic.gabriel-alonso.com>';
 
 let resend: Resend | null = null;
 function getResend(): Resend | null {

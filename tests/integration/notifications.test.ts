@@ -63,7 +63,8 @@ describe.skipIf(!configured)('email notification wiring (integration)', () => {
 	});
 
 	it("notifies the post author when someone else comments", async () => {
-		const { data: post } = await admin.from('posts').insert({ author_id: alice.user.id, body: 'hi', tags: [] }).select('id').single();
+		const { data: post, error: postError } = await admin.from('posts').insert({ author_id: alice.user.id, body: 'hi', tags: [] }).select('id').single();
+		if (postError) throw postError;
 		const event = buildEvent(bob, { id: post.id }, {
 			method: 'POST',
 			path: `/api/posts/${post.id}/comments`,
@@ -78,7 +79,8 @@ describe.skipIf(!configured)('email notification wiring (integration)', () => {
 	});
 
 	it('does not notify when the post author comments on their own post', async () => {
-		const { data: post } = await admin.from('posts').insert({ author_id: alice.user.id, body: 'hi', tags: [] }).select('id').single();
+		const { data: post, error: postError } = await admin.from('posts').insert({ author_id: alice.user.id, body: 'hi', tags: [] }).select('id').single();
+		if (postError) throw postError;
 		const event = buildEvent(alice, { id: post.id }, {
 			method: 'POST',
 			path: `/api/posts/${post.id}/comments`,
