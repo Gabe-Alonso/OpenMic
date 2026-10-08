@@ -115,6 +115,22 @@ export const actions: Actions = {
 		return {};
 	},
 
+	toggleEmailNotifications: async ({ request, locals: { supabase, safeGetSession } }) => {
+		const { user } = await safeGetSession();
+		if (!user) throw redirect(303, '/signin');
+
+		const data = await request.formData();
+		const emailNotificationsEnabled = data.has('email_notifications_enabled');
+
+		const { error } = await supabase
+			.from('profiles')
+			.update({ email_notifications_enabled: emailNotificationsEnabled, updated_at: new Date().toISOString() })
+			.eq('id', user.id);
+
+		if (error) return fail(500, { toggleError: error.message });
+		return {};
+	},
+
 	createEvent: async ({ request, locals: { supabase, safeGetSession } }) => {
 		const { user } = await safeGetSession();
 		if (!user) throw redirect(303, '/signin');

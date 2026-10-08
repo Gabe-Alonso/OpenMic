@@ -1,6 +1,7 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { checkRateLimit, rateLimitResponse } from '$lib/server/rateLimit';
+import { notifyByEmail, newCommentEmail } from '$lib/server/email';
 
 export const GET: RequestHandler = async ({ params, locals: { supabase, safeGetSession } }) => {
 	const { user } = await safeGetSession();
@@ -56,7 +57,7 @@ export const GET: RequestHandler = async ({ params, locals: { supabase, safeGetS
 	return json(roots);
 };
 
-export const POST: RequestHandler = async ({ params, request, locals: { supabase, safeGetSession } }) => {
+export const POST: RequestHandler = async ({ params, request, url, locals: { supabase, safeGetSession } }) => {
 	const { user } = await safeGetSession();
 	if (!user) return json({ error: 'Unauthorized' }, { status: 401 });
 
@@ -80,6 +81,13 @@ export const POST: RequestHandler = async ({ params, request, locals: { supabase
 		.single();
 
 	if (error) return json({ error: error.message }, { status: 500 });
+
+	const { data: post } = await supabase.from('posts').select('author_id').eq('id', params.id).maybeSingle();
+	if (post && post.author_id !== user.id) {
+		const commenterName = (data.profiles as any)?.full_name ?? 'Someone';
+		const { subject, html } = newCommentEmail(commenterName, data.content, `${url.origin}/post/${params.id}`);
+		await notifyByEmail(post.author_id, subject, html);
+	}
 
 	return json({
 		id: data.id,
