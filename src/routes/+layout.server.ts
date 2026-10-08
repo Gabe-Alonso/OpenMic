@@ -50,5 +50,15 @@ export const load: LayoutServerLoad = async ({ locals: { safeGetSession, supabas
 		}
 	}
 
-	return { session, user, avatarUrl, unreadCount };
+	let unreadNotificationCount = 0;
+	if (user) {
+		const { count } = await supabase
+			.from('notifications')
+			.select('*', { count: 'exact', head: true })
+			.eq('recipient_id', user.id)
+			.is('read_at', null);
+		unreadNotificationCount = count ?? 0;
+	}
+
+	return { session, user, avatarUrl, unreadCount, unreadNotificationCount };
 };

@@ -522,29 +522,38 @@
 			</form>
 		</div>
 
-		<div class="setting-row">
-			<div class="setting-info">
-				<p class="setting-label">Email Notifications</p>
-				<p class="setting-desc">
-					{(data.profile as any)?.email_notifications_enabled ?? true
-						? "We'll email you about new followers, comments, and band requests."
-						: "You won't receive any email notifications."}
-				</p>
-			</div>
-			<form method="POST" action="?/toggleEmailNotifications" use:enhance>
-				<label class="toggle-wrap">
-					<input
-						type="checkbox"
-						name="email_notifications_enabled"
-						checked={(data.profile as any)?.email_notifications_enabled ?? true}
-						onchange={(e) => e.currentTarget.form?.requestSubmit()}
-					/>
-					<span class="toggle-track">
-						<span class="toggle-thumb"></span>
-					</span>
-				</label>
-			</form>
-		</div>
+		<h3 class="notif-prefs-title">Notifications</h3>
+		<p class="setting-desc notif-prefs-desc">
+			Each toggle covers every channel that notification uses — email, in-app, or both.
+		</p>
+		<form method="POST" action="?/updateNotificationPreferences" use:enhance>
+			{#each [
+				{ key: 'new_follower', label: 'New followers', desc: 'Email + in-app when someone follows you.' },
+				{ key: 'nearby_event', label: 'Events near you', desc: 'Email + in-app when a nearby venue posts a new event.' },
+				{ key: 'new_comment', label: 'Comments on your posts', desc: 'Email when someone comments on one of your posts.' },
+				{ key: 'band_join_request', label: 'Band join requests', desc: 'Email when an artist asks to join your band.' },
+				{ key: 'band_join_accepted', label: 'Band request accepted', desc: "Email when a band accepts your join request." }
+			] as pref}
+				{@const prefs = (data.profile as any)?.notification_preferences ?? {}}
+				<div class="setting-row">
+					<div class="setting-info">
+						<p class="setting-label">{pref.label}</p>
+						<p class="setting-desc">{pref.desc}</p>
+					</div>
+					<label class="toggle-wrap">
+						<input
+							type="checkbox"
+							name={pref.key}
+							checked={prefs[pref.key] ?? true}
+							onchange={(e) => e.currentTarget.form?.requestSubmit()}
+						/>
+						<span class="toggle-track">
+							<span class="toggle-thumb"></span>
+						</span>
+					</label>
+				</div>
+			{/each}
+		</form>
 
 		<div class="danger-zone">
 			<h3 class="danger-title">Danger Zone</h3>
@@ -689,6 +698,16 @@
 	.card-title {
 		font-size: 1.625rem;
 		margin: 0 0 20px;
+	}
+
+	.notif-prefs-title {
+		font-size: 1rem;
+		font-weight: 700;
+		margin: 24px 0 2px;
+	}
+
+	.notif-prefs-desc {
+		margin-bottom: 10px;
 	}
 
 	/* Banner */

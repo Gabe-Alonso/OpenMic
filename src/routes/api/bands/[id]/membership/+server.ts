@@ -1,6 +1,7 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { notifyByEmail, bandJoinRequestEmail, bandJoinAcceptedEmail } from '$lib/server/email';
+import { bandJoinRequestEmail, bandJoinAcceptedEmail } from '$lib/server/email';
+import { notify } from '$lib/server/notify';
 
 export const POST: RequestHandler = async ({ params, url, locals: { supabase, safeGetSession } }) => {
 	const { user } = await safeGetSession();
@@ -25,7 +26,7 @@ export const POST: RequestHandler = async ({ params, url, locals: { supabase, sa
 		.eq('id', user.id)
 		.maybeSingle();
 	const { subject, html } = bandJoinRequestEmail(requesterProfile?.full_name ?? 'Someone', `${url.origin}/profile/${params.id}`);
-	await notifyByEmail(params.id, subject, html);
+	await notify(params.id, 'band_join_request', { email: { subject, html } });
 
 	return json({ status: 'pending' });
 };
@@ -51,7 +52,7 @@ export const PATCH: RequestHandler = async ({ params, request, url, locals: { su
 		.eq('id', params.id)
 		.maybeSingle();
 	const { subject, html } = bandJoinAcceptedEmail(bandProfile?.full_name ?? 'The band', `${url.origin}/profile/${params.id}`);
-	await notifyByEmail(member_id, subject, html);
+	await notify(member_id, 'band_join_accepted', { email: { subject, html } });
 
 	return json({ status: 'accepted' });
 };

@@ -1,8 +1,5 @@
 import { Resend } from 'resend';
-import { createClient } from '@supabase/supabase-js';
 import { env } from '$env/dynamic/private';
-import { PUBLIC_SUPABASE_URL } from '$env/static/public';
-import { SUPABASE_SERVICE_ROLE_KEY } from '$env/static/private';
 
 // Unlike PRIVATE_ADMIN_EMAIL etc., RESEND_API_KEY is genuinely optional —
 // absent in CI/test and in local dev unless explicitly configured — so this
@@ -17,10 +14,19 @@ function getResend(): Resend | null {
 	return resend;
 }
 
-let adminClient: ReturnType<typeof createClient> | null = null;
-function getAdminClient() {
-	if (!adminClient) adminClient = createClient(PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-	return adminClient;
+// Sends, or quietly does nothing if email isn't configured or the send
+// fails for any reason — a notification should never be able to break the
+// action (follow, comment, join request...) that triggered it. Preference
+// checks and recipient lookup happen in notify.ts, one level up; this is
+// just the mechanics of actually sending.
+export async function sendEmail(to: string, subject: string, html: string): Promise<void> {
+	const client = getResend();
+	if (!client) return;
+	try {
+		await client.emails.send({ from: FROM_ADDRESS, to, subject, html });
+	} catch (err) {
+		console.error('sendEmail failed', err);
+	}
 }
 
 export function escapeHtml(s: string): string {
@@ -30,34 +36,6 @@ export function escapeHtml(s: string): string {
 		.replace(/>/g, '&gt;')
 		.replace(/"/g, '&quot;')
 		.replace(/'/g, '&#39;');
-}
-
-// Looks up the recipient's email + notification preference and sends, or
-// quietly does nothing if email isn't configured, the recipient opted out,
-// or the lookup/send fails for any reason — a notification should never be
-// able to break the action (follow, comment, join request...) that
-// triggered it.
-export async function notifyByEmail(recipientId: string, subject: string, html: string): Promise<void> {
-	const client = getResend();
-	if (!client) return;
-
-	try {
-		const admin = getAdminClient();
-		const { data: profile } = await admin
-			.from('profiles')
-			.select('email_notifications_enabled')
-			.eq('id', recipientId)
-			.maybeSingle<{ email_notifications_enabled: boolean }>();
-		if (profile?.email_notifications_enabled === false) return;
-
-		const { data: userRes } = await admin.auth.admin.getUserById(recipientId);
-		const to = userRes?.user?.email;
-		if (!to) return;
-
-		await client.emails.send({ from: FROM_ADDRESS, to, subject, html });
-	} catch (err) {
-		console.error('notifyByEmail failed', err);
-	}
 }
 
 export function newFollowerEmail(followerName: string, profileUrl: string) {
@@ -90,5 +68,14 @@ export function bandJoinAcceptedEmail(bandName: string, bandProfileUrl: string) 
 	return {
 		subject: `You're in! ${bandName} accepted your request`,
 		html: `<p><strong>${name}</strong> accepted your request to join. You're officially a member.</p><p><a href="${bandProfileUrl}">View the band's profile</a></p>`
+	};
+}
+
+export function nearbyEventEmail(hostName: string, eventTitle: string, eventDate: string, profileUrl: string) {
+	const host = escapeHtml(hostName);
+	const title = escapeHtml(eventTitle);
+	return {
+		subject: `New event near you: ${eventTitle}`,
+		html: `<p><strong>${host}</strong> just posted an event near you: <strong>${title}</strong> on ${escapeHtml(eventDate)}.</p><p><a href="${profileUrl}">View details</a></p>`
 	};
 }

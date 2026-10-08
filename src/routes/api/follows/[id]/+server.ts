@@ -1,7 +1,8 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { checkRateLimit, rateLimitResponse } from '$lib/server/rateLimit';
-import { notifyByEmail, newFollowerEmail } from '$lib/server/email';
+import { newFollowerEmail } from '$lib/server/email';
+import { notify } from '$lib/server/notify';
 
 export const POST: RequestHandler = async ({ params, url, locals: { supabase, safeGetSession } }) => {
 	const { user } = await safeGetSession();
@@ -29,8 +30,12 @@ export const POST: RequestHandler = async ({ params, url, locals: { supabase, sa
 			.select('full_name')
 			.eq('id', user.id)
 			.maybeSingle();
-		const { subject, html } = newFollowerEmail(followerProfile?.full_name ?? 'Someone', `${url.origin}/profile/${user.id}`);
-		await notifyByEmail(params.id, subject, html);
+		const followerName = followerProfile?.full_name ?? 'Someone';
+		const { subject, html } = newFollowerEmail(followerName, `${url.origin}/profile/${user.id}`);
+		await notify(params.id, 'new_follower', {
+			inApp: { title: `${followerName} started following you`, link: `/profile/${user.id}` },
+			email: { subject, html }
+		});
 	}
 
 	const { count } = await supabase
