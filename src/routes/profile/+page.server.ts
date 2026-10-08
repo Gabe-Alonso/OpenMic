@@ -121,13 +121,11 @@ export const actions: Actions = {
 		if (!user) throw redirect(303, '/signin');
 
 		const data = await request.formData();
-		const preferences = {
-			new_follower: data.has('new_follower'),
-			new_comment: data.has('new_comment'),
-			band_join_request: data.has('band_join_request'),
-			band_join_accepted: data.has('band_join_accepted'),
-			nearby_event: data.has('nearby_event')
-		};
+		const types = ['new_follower', 'new_comment', 'band_join_request', 'band_join_accepted', 'nearby_event'];
+		const preferences: Record<string, { email: boolean; in_app: boolean }> = {};
+		for (const type of types) {
+			preferences[type] = { email: data.has(`${type}_email`), in_app: data.has(`${type}_in_app`) };
+		}
 
 		const { error } = await supabase
 			.from('profiles')

@@ -9,9 +9,13 @@ export type NotificationType =
 	| 'band_join_accepted'
 	| 'nearby_event';
 
-// One preference per type, not per (type, channel): a single toggle covers
-// every channel that type happens to use. Checked once here so individual
-// routes don't each need to know how preferences are stored.
+type ChannelPrefs = { email?: boolean; in_app?: boolean };
+
+// One preference PER (type, channel): every type can go out over either
+// channel, and each is independently toggleable — not a single switch per
+// type covering whichever channels that type happens to use. Checked once
+// here so individual routes don't each need to know how preferences are
+// stored.
 export async function notify(
 	recipientId: string,
 	type: NotificationType,
@@ -26,13 +30,12 @@ export async function notify(
 			.from('profiles')
 			.select('notification_preferences')
 			.eq('id', recipientId)
-			.maybeSingle<{ notification_preferences: Record<string, boolean> }>();
-		const enabled = profile?.notification_preferences?.[type] ?? true;
-		if (!enabled) return;
+			.maybeSingle<{ notification_preferences: Record<string, ChannelPrefs> }>();
+		const prefs = profile?.notification_preferences?.[type];
 
 		const tasks: Promise<unknown>[] = [];
 
-		if (opts.inApp) {
+		if (opts.inApp && (prefs?.in_app ?? true)) {
 			tasks.push(
 				Promise.resolve(
 					admin.from('notifications').insert({
@@ -46,7 +49,7 @@ export async function notify(
 			);
 		}
 
-		if (opts.email) {
+		if (opts.email && (prefs?.email ?? true)) {
 			tasks.push(
 				admin.auth.admin.getUserById(recipientId).then(({ data }) => {
 					const to = data?.user?.email;

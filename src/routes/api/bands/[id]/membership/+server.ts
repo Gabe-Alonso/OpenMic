@@ -25,8 +25,12 @@ export const POST: RequestHandler = async ({ params, url, locals: { supabase, sa
 		.select('full_name')
 		.eq('id', user.id)
 		.maybeSingle();
-	const { subject, html } = bandJoinRequestEmail(requesterProfile?.full_name ?? 'Someone', `${url.origin}/profile/${params.id}`);
-	await notify(params.id, 'band_join_request', { email: { subject, html } });
+	const requesterName = requesterProfile?.full_name ?? 'Someone';
+	const { subject, html } = bandJoinRequestEmail(requesterName, `${url.origin}/profile/${params.id}`);
+	await notify(params.id, 'band_join_request', {
+		inApp: { title: `${requesterName} wants to join your band`, link: `/profile/${params.id}` },
+		email: { subject, html }
+	});
 
 	return json({ status: 'pending' });
 };
@@ -51,8 +55,12 @@ export const PATCH: RequestHandler = async ({ params, request, url, locals: { su
 		.select('full_name')
 		.eq('id', params.id)
 		.maybeSingle();
-	const { subject, html } = bandJoinAcceptedEmail(bandProfile?.full_name ?? 'The band', `${url.origin}/profile/${params.id}`);
-	await notify(member_id, 'band_join_accepted', { email: { subject, html } });
+	const bandName = bandProfile?.full_name ?? 'The band';
+	const { subject, html } = bandJoinAcceptedEmail(bandName, `${url.origin}/profile/${params.id}`);
+	await notify(member_id, 'band_join_accepted', {
+		inApp: { title: `${bandName} accepted your request to join`, link: `/profile/${params.id}` },
+		email: { subject, html }
+	});
 
 	return json({ status: 'accepted' });
 };

@@ -87,7 +87,10 @@ export const POST: RequestHandler = async ({ params, request, url, locals: { sup
 	if (post && post.author_id !== user.id) {
 		const commenterName = (data.profiles as any)?.full_name ?? 'Someone';
 		const { subject, html } = newCommentEmail(commenterName, data.content, `${url.origin}/post/${params.id}`);
-		await notify(post.author_id, 'new_comment', { email: { subject, html } });
+		await notify(post.author_id, 'new_comment', {
+			inApp: { title: `${commenterName} commented on your post`, body: data.content.slice(0, 200), link: `/post/${params.id}` },
+			email: { subject, html }
+		});
 	}
 
 	return json({

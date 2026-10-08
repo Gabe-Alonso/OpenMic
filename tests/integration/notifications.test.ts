@@ -48,7 +48,7 @@ describe.skipIf(!configured)('notifications (integration)', () => {
 		await admin.from('follows').delete().eq('follower_id', alice.user.id).eq('following_id', bob.user.id);
 	});
 
-	it('does not insert an in-app row for an email-only type (comment)', async () => {
+	it('inserts an in-app row for comments too — every type supports both channels', async () => {
 		const { data: post, error: postError } = await admin.from('posts').insert({ author_id: alice.user.id, body: 'hi', tags: [] }).select('id').single();
 		if (postError) throw postError;
 		const event = buildEvent(bob, { id: post.id }, {
@@ -59,24 +59,27 @@ describe.skipIf(!configured)('notifications (integration)', () => {
 		const res = await callRoute(() => commentsRoute.POST(event));
 		expect(res.status).toBe(200);
 
-		const { data: rows } = await admin.from('notifications').select('id').eq('recipient_id', alice.user.id).eq('type', 'new_comment');
-		expect(rows ?? []).toHaveLength(0);
+		const { data: rows } = await admin.from('notifications').select('id, link').eq('recipient_id', alice.user.id).eq('type', 'new_comment');
+		expect(rows).toHaveLength(1);
+		expect(rows![0].link).toBe(`/post/${post.id}`);
 
+		await admin.from('notifications').delete().eq('recipient_id', alice.user.id).eq('type', 'new_comment');
 		await admin.from('posts').delete().eq('id', post.id);
 	});
 
-	it('skips the notification entirely when the recipient opted out of that type', async () => {
-		await admin.from('profiles').update({ notification_preferences: { new_follower: false } }).eq('id', bob.user.id);
+	it('gates the in-app channel independently of the email channel', async () => {
+		await admin.from('profiles').update({ notification_preferences: { new_follower: { email: true, in_app: false } } }).eq('id', bob.user.id);
 
 		const event = buildEvent(alice, { id: bob.user.id }, { method: 'POST', path: `/api/follows/${bob.user.id}` });
 		const res = await callRoute(() => followRoute.POST(event));
 		expect(res.status).toBe(200);
 
+		// in_app is off: no row, even though email is still on for this type.
 		const { data: rows } = await admin.from('notifications').select('id').eq('recipient_id', bob.user.id).eq('type', 'new_follower');
 		expect(rows ?? []).toHaveLength(0);
 
 		await admin.from('follows').delete().eq('follower_id', alice.user.id).eq('following_id', bob.user.id);
-		await admin.from('profiles').update({ notification_preferences: { new_follower: true } }).eq('id', bob.user.id);
+		await admin.from('profiles').update({ notification_preferences: { new_follower: { email: true, in_app: true } } }).eq('id', bob.user.id);
 	});
 
 	describe('nearby event fan-out', () => {
