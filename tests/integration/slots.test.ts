@@ -89,6 +89,19 @@ describe.skipIf(!configured)('event slots, applications, and private offers (int
 		expect(slot?.status).toBe('open');
 	});
 
+	it('posts a feed announcement, authored by the venue, when a slot opens', async () => {
+		await addSlot();
+		const { data: post } = await admin
+			.from('posts')
+			.select('author_id, body')
+			.eq('author_id', venue.user.id)
+			.order('created_at', { ascending: false })
+			.limit(1)
+			.single();
+		expect(post?.author_id).toBe(venue.user.id);
+		expect(post?.body).toContain('Slots Test Night');
+	});
+
 	it("refuses a non-owner venue adding a slot to someone else's event", async () => {
 		const result = await formAction(manageActions.addSlot, otherVenue, { eventId }, { start_time: '21:00' });
 		expect(result.status).toBe(404);
