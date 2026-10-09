@@ -145,7 +145,17 @@ export const actions: Actions = {
 
 		const data = await request.formData();
 		const type = data.get('type') as string;
-		const validTypes = ['new_follower', 'new_comment', 'band_join_request', 'band_join_accepted', 'nearby_event'];
+		const validTypes = [
+			'new_follower',
+			'new_comment',
+			'band_join_request',
+			'band_join_accepted',
+			'nearby_event',
+			'slot_application',
+			'slot_application_decided',
+			'slot_offer',
+			'slot_offer_decided'
+		];
 		if (!validTypes.includes(type)) return fail(400, { toggleError: 'Invalid notification type' });
 
 		const { data: profile } = await supabase.from('profiles').select('notification_preferences').eq('id', user.id).maybeSingle();
