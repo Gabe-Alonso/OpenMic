@@ -1,11 +1,15 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { untrack } from 'svelte';
+	import { enhance } from '$app/forms';
 	import PostCard from '$lib/components/PostCard.svelte';
 	import VenueReviews from '$lib/components/VenueReviews.svelte';
-	import type { PageData } from './$types';
+	import type { PageData, ActionData } from './$types';
 
-	let { data }: { data: PageData } = $props();
+	let { data, form }: { data: PageData; form: ActionData } = $props();
+
+	let openApplySlotId = $state<string | null>(null);
+	let applyMessage = $state('');
 
 	const profile = $derived(data.profile);
 
@@ -470,6 +474,72 @@
 									{#if ev.genres?.length}
 										<div class="event-genre-tags">
 											{#each ev.genres as g}<span class="event-genre-tag">#{g}</span>{/each}
+										</div>
+									{/if}
+									{#if (ev.slots ?? []).length > 0}
+										<div class="slots-list">
+											{#each ev.slots as slot (slot.id)}
+												{@const myStatus = (data as any).myApplicationBySlot?.[slot.id]}
+												<div class="slot-row">
+													<span class="slot-row-time">
+														{#if slot.start_time}
+															{slot.start_time}{slot.end_time ? `–${slot.end_time}` : ''}
+														{:else}
+															Slot
+														{/if}
+													</span>
+													{#if slot.status === 'filled' && slot.artist}
+														<a href="/profile/{slot.artist.id}" class="slot-filled-link">
+															<span class="slot-mini-avatar">
+																{#if slot.artist.avatar_url}
+																	<img src={slot.artist.avatar_url} alt="" />
+																{:else}
+																	{slot.artist.full_name?.[0]?.toUpperCase() ?? '?'}
+																{/if}
+															</span>
+															{slot.artist.full_name ?? 'Artist'}
+														</a>
+													{:else if data.user && !data.isOwnProfile && myStatus === 'pending'}
+														<div class="slot-vacant-row">
+															<span class="slot-vacant-label">Vacant — application pending</span>
+															<form method="POST" action="?/withdrawApplication" use:enhance>
+																<input type="hidden" name="slot_id" value={slot.id} />
+																<button type="submit" class="slot-withdraw-btn">Withdraw</button>
+															</form>
+														</div>
+													{:else if data.user && !data.isOwnProfile && myStatus === 'accepted'}
+														<span class="slot-vacant-label">You're booked for this slot!</span>
+													{:else if data.user && !data.isOwnProfile}
+														<div class="slot-vacant-row">
+															<span class="slot-vacant-label">Vacant</span>
+															<button
+																type="button"
+																class="slot-apply-btn"
+																onclick={() => { openApplySlotId = openApplySlotId === slot.id ? null : slot.id; applyMessage = ''; }}
+															>
+																{openApplySlotId === slot.id ? 'Cancel' : 'Apply'}
+															</button>
+														</div>
+														{#if openApplySlotId === slot.id}
+															<form
+																method="POST"
+																action="?/applyToSlot"
+																use:enhance={() => async ({ update }) => { await update(); openApplySlotId = null; }}
+																class="slot-apply-form"
+															>
+																<input type="hidden" name="slot_id" value={slot.id} />
+																<textarea name="message" rows="2" placeholder="Optional message to the venue…" bind:value={applyMessage} maxlength="1000"></textarea>
+																<button type="submit" class="btn btn-primary">Submit Application</button>
+															</form>
+														{/if}
+													{:else}
+														<span class="slot-vacant-label">Vacant</span>
+													{/if}
+												</div>
+												{#if form && 'applyError' in form && form.applyError && openApplySlotId === null}
+													<p class="slot-apply-error">{form.applyError}</p>
+												{/if}
+											{/each}
 										</div>
 									{/if}
 								</div>
@@ -1300,6 +1370,84 @@
 		text-align: center;
 		padding: 16px 0;
 		margin: 0;
+	}
+	.slots-list {
+		display: flex;
+		flex-direction: column;
+		gap: 6px;
+		margin-top: 8px;
+		padding-top: 8px;
+		border-top: 1px dashed var(--color-border);
+	}
+	.slot-row {
+		display: flex;
+		flex-direction: column;
+		gap: 4px;
+		font-size: 0.8125rem;
+	}
+	.slot-row-time {
+		font-weight: 700;
+		color: var(--color-text-muted);
+	}
+	.slot-vacant-row {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 8px;
+	}
+	.slot-vacant-label {
+		color: var(--color-text-muted);
+	}
+	.slot-apply-btn, .slot-withdraw-btn {
+		border: 1px solid var(--color-border-strong);
+		background: var(--color-surface);
+		border-radius: var(--radius-pill);
+		padding: 3px 10px;
+		font-size: 0.75rem;
+		font-weight: 600;
+		cursor: pointer;
+	}
+	.slot-filled-link {
+		display: flex;
+		align-items: center;
+		gap: 6px;
+		text-decoration: none;
+		color: var(--color-text-strong);
+		font-weight: 600;
+	}
+	.slot-mini-avatar {
+		width: 22px;
+		height: 22px;
+		border-radius: 50%;
+		background: var(--color-ink);
+		color: var(--color-cream);
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		font-size: 0.65rem;
+		font-weight: 700;
+		overflow: hidden;
+		flex-shrink: 0;
+	}
+	.slot-mini-avatar img { width: 100%; height: 100%; object-fit: cover; }
+	.slot-apply-form {
+		display: flex;
+		flex-direction: column;
+		gap: 6px;
+	}
+	.slot-apply-form textarea {
+		width: 100%;
+		padding: 6px 8px;
+		border: 1.5px solid var(--color-border);
+		border-radius: var(--radius-md);
+		font-size: 0.8125rem;
+		font-family: inherit;
+		resize: vertical;
+	}
+	.slot-apply-error {
+		font-size: 0.75rem;
+		color: var(--color-danger);
+		margin: 2px 0 0;
 	}
 	.cal-empty {
 		font-size: 0.875rem;

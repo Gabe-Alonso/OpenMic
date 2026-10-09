@@ -9,7 +9,11 @@ export type NotificationType =
 	| 'band_join_request'
 	| 'band_join_accepted'
 	| 'nearby_event'
-	| 'venue_claim_decided';
+	| 'venue_claim_decided'
+	| 'slot_application'
+	| 'slot_application_decided'
+	| 'slot_offer'
+	| 'slot_offer_decided';
 
 type ChannelPrefs = { email?: boolean; in_app?: boolean };
 

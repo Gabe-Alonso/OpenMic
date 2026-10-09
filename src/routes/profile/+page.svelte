@@ -503,6 +503,7 @@
 							{#if ev.description}<p class="event-desc">{ev.description}</p>{/if}
 						</div>
 						<div class="event-actions">
+							<a href="/profile/events/{ev.id}" class="edit-event-btn">Manage slots</a>
 							<button type="button" class="edit-event-btn" onclick={() => openEditEvent(ev)}>Edit</button>
 							<form method="POST" action="?/deleteEvent" use:enhance>
 								<input type="hidden" name="event_id" value={ev.id} />
@@ -563,7 +564,11 @@
 				{ key: 'nearby_event', label: 'Events near you' },
 				{ key: 'new_comment', label: 'Comments on your posts' },
 				{ key: 'band_join_request', label: 'Band join requests' },
-				{ key: 'band_join_accepted', label: 'Band request accepted' }
+				{ key: 'band_join_accepted', label: 'Band request accepted' },
+				{ key: 'slot_application', label: 'New slot applications (venues)' },
+				{ key: 'slot_application_decided', label: 'Your slot applications decided (artists)' },
+				{ key: 'slot_offer', label: 'Private slot invitations (artists)' },
+				{ key: 'slot_offer_decided', label: 'Your slot invitations decided (venues)' }
 			] as pref}
 				{@const prefs = (data.profile as any)?.notification_preferences ?? {}}
 				{@const current = prefs[pref.key] ?? { email: true, in_app: true }}

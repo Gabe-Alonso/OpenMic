@@ -92,3 +92,48 @@ export function venueClaimDecidedEmail(venueName: string, approved: boolean, ven
 				html: `<p>Your claim on <strong>${name}</strong> wasn't approved this time. If this is a mistake or your situation has changed, you're welcome to submit it again.</p><p><a href="${venueUrl}">View the venue</a></p>`
 			};
 }
+
+export function slotApplicationEmail(artistName: string, eventTitle: string, manageUrl: string) {
+	const artist = escapeHtml(artistName);
+	const title = escapeHtml(eventTitle);
+	return {
+		subject: `${artistName} applied to perform at ${eventTitle}`,
+		html: `<p><strong>${artist}</strong> applied for a slot at <strong>${title}</strong>.</p><p><a href="${manageUrl}">Review the application</a></p>`
+	};
+}
+
+export function slotApplicationDecidedEmail(eventTitle: string, approved: boolean, venueUrl: string) {
+	const title = escapeHtml(eventTitle);
+	return approved
+		? {
+				subject: `You're booked for ${eventTitle}`,
+				html: `<p>You've been accepted to perform at <strong>${title}</strong>.</p><p><a href="${venueUrl}">View the event</a></p>`
+			}
+		: {
+				subject: `Update on your application for ${eventTitle}`,
+				html: `<p>Your application to perform at <strong>${title}</strong> wasn't accepted this time.</p><p><a href="${venueUrl}">View the event</a></p>`
+			};
+}
+
+export function slotOfferEmail(venueName: string, eventTitle: string, offerUrl: string) {
+	const venue = escapeHtml(venueName);
+	const title = escapeHtml(eventTitle);
+	return {
+		subject: `${venueName} invited you to perform at ${eventTitle}`,
+		html: `<p><strong>${venue}</strong> would like to offer you a slot at <strong>${title}</strong>, exclusively, before opening it up to other applicants.</p><p><a href="${offerUrl}">View the invitation</a></p>`
+	};
+}
+
+export function slotOfferDecidedEmail(artistName: string, eventTitle: string, accepted: boolean, manageUrl: string) {
+	const artist = escapeHtml(artistName);
+	const title = escapeHtml(eventTitle);
+	return accepted
+		? {
+				subject: `${artistName} accepted your invitation`,
+				html: `<p><strong>${artist}</strong> accepted your invitation to perform at <strong>${title}</strong>. The slot is locked in.</p><p><a href="${manageUrl}">View the event</a></p>`
+			}
+		: {
+				subject: `${artistName} declined your invitation`,
+				html: `<p><strong>${artist}</strong> declined your invitation to perform at <strong>${title}</strong>. The slot is open again.</p><p><a href="${manageUrl}">View the event</a></p>`
+			};
+}
