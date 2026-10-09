@@ -2,6 +2,7 @@
 	import { goto } from '$app/navigation';
 	import { untrack } from 'svelte';
 	import PostCard from '$lib/components/PostCard.svelte';
+	import VenueReviews from '$lib/components/VenueReviews.svelte';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
@@ -351,6 +352,17 @@
 
 	<div class="profile-body">
 		<div class="main-col">
+			{#if (profile as any).profile_type === 'venue'}
+				<section class="card">
+					<h2 class="card-title">Reviews</h2>
+					<VenueReviews
+						venueProfileId={profile.id}
+						currentUserId={data.user?.id ?? null}
+						canReview={!!data.user && !data.isOwnProfile}
+					/>
+				</section>
+			{/if}
+
 			{#if data.isOwnProfile && (profile as any).is_band && pendingRequests.length > 0}
 				<section class="card">
 					<h2 class="card-title">Join requests</h2>
