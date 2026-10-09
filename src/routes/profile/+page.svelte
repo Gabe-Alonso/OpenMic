@@ -33,8 +33,34 @@
 	let calMonth = $state(new Date().getMonth());
 	let selectedDay = $state<string | null>(null);
 
-	type VenueEvent = { id: string; title: string; date: string; start_time: string | null; end_time: string | null; description: string | null };
+	type VenueEvent = {
+		id: string;
+		title: string;
+		date: string;
+		start_time: string | null;
+		end_time: string | null;
+		description: string | null;
+		pay_min: number | null;
+		pay_max: number | null;
+		genres: string[] | null;
+	};
 	let eventModal = $state<{ editing?: VenueEvent; prefillDate?: string } | null>(null);
+	let eventGenres = $state<string[]>([]);
+
+	$effect(() => {
+		eventGenres = eventModal?.editing?.genres ?? [];
+	});
+
+	// Nearby-event notification filters — off by default, seeded once from
+	// whatever's already saved.
+	const existingEventFilters = (data.profile as any)?.notification_preferences?.nearby_event?.filters ?? {};
+	let showEventFilters = $state(false);
+	let filterDistanceEnabled = $state(existingEventFilters.distance?.enabled ?? false);
+	let filterDistanceMiles = $state(existingEventFilters.distance?.max_miles ?? 50);
+	let filterPayEnabled = $state(existingEventFilters.pay?.enabled ?? false);
+	let filterMinPay = $state(existingEventFilters.pay?.min_pay ?? 0);
+	let filterGenresEnabled = $state(existingEventFilters.genres?.enabled ?? false);
+	let filterGenreValues = $state<string[]>(existingEventFilters.genres?.values ?? []);
 
 	$effect(() => {
 		if ((form as any)?.eventCreated || (form as any)?.eventUpdated) {
@@ -526,28 +552,44 @@
 		<p class="setting-desc notif-prefs-desc">
 			Every notification can go out by email, show up in-app, both, or neither — toggle each independently.
 		</p>
-		<form method="POST" action="?/updateNotificationPreferences" use:enhance>
-			<div class="notif-pref-grid">
-				<div class="notif-pref-header">
-					<span></span>
-					<span>Email</span>
-					<span>In-app</span>
-				</div>
-				{#each [
-					{ key: 'new_follower', label: 'New followers' },
-					{ key: 'nearby_event', label: 'Events near you' },
-					{ key: 'new_comment', label: 'Comments on your posts' },
-					{ key: 'band_join_request', label: 'Band join requests' },
-					{ key: 'band_join_accepted', label: 'Band request accepted' }
-				] as pref}
-					{@const prefs = (data.profile as any)?.notification_preferences ?? {}}
-					{@const current = prefs[pref.key] ?? { email: true, in_app: true }}
+		<div class="notif-pref-grid">
+			<div class="notif-pref-header">
+				<span></span>
+				<span>Email</span>
+				<span>In-app</span>
+			</div>
+			{#each [
+				{ key: 'new_follower', label: 'New followers' },
+				{ key: 'nearby_event', label: 'Events near you' },
+				{ key: 'new_comment', label: 'Comments on your posts' },
+				{ key: 'band_join_request', label: 'Band join requests' },
+				{ key: 'band_join_accepted', label: 'Band request accepted' }
+			] as pref}
+				{@const prefs = (data.profile as any)?.notification_preferences ?? {}}
+				{@const current = prefs[pref.key] ?? { email: true, in_app: true }}
+				<form method="POST" action="?/updateNotificationPreference" use:enhance>
+					<input type="hidden" name="type" value={pref.key} />
 					<div class="notif-pref-row">
-						<span class="notif-pref-label">{pref.label}</span>
+						<span class="notif-pref-label">
+							{pref.label}
+							{#if pref.key === 'nearby_event'}
+								<button
+									type="button"
+									class="filter-toggle-btn"
+									onclick={() => (showEventFilters = !showEventFilters)}
+									aria-expanded={showEventFilters}
+								>
+									Filters
+									<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" class:flipped={showEventFilters}>
+										<path d="m6 9 6 6 6-6" />
+									</svg>
+								</button>
+							{/if}
+						</span>
 						<label class="toggle-wrap toggle-sm">
 							<input
 								type="checkbox"
-								name="{pref.key}_email"
+								name="email"
 								checked={current.email ?? true}
 								onchange={(e) => e.currentTarget.form?.requestSubmit()}
 							/>
@@ -558,7 +600,7 @@
 						<label class="toggle-wrap toggle-sm">
 							<input
 								type="checkbox"
-								name="{pref.key}_in_app"
+								name="in_app"
 								checked={current.in_app ?? true}
 								onchange={(e) => e.currentTarget.form?.requestSubmit()}
 							/>
@@ -567,9 +609,56 @@
 							</span>
 						</label>
 					</div>
-				{/each}
-			</div>
-		</form>
+				</form>
+
+				{#if pref.key === 'nearby_event' && showEventFilters}
+					<form method="POST" action="?/updateNearbyEventFilters" use:enhance class="event-filter-panel">
+						<p class="event-filter-intro">
+							Narrow down which nearby events actually notify you. Each filter is off by default — leave it off to be notified about everything nearby.
+						</p>
+
+						<div class="event-filter-row">
+							<label class="event-filter-enable">
+								<input type="checkbox" name="distance_enabled" bind:checked={filterDistanceEnabled} />
+								Only within
+							</label>
+							<select name="max_miles" bind:value={filterDistanceMiles} disabled={!filterDistanceEnabled}>
+								{#each [10, 25, 50, 100, 250] as mi}
+									<option value={mi}>{mi} miles</option>
+								{/each}
+							</select>
+						</div>
+
+						<div class="event-filter-row">
+							<label class="event-filter-enable">
+								<input type="checkbox" name="pay_enabled" bind:checked={filterPayEnabled} />
+								Only paying at least
+							</label>
+							<div class="event-filter-pay-input">
+								<span>$</span>
+								<input type="number" name="min_pay" min="0" step="1" bind:value={filterMinPay} disabled={!filterPayEnabled} />
+							</div>
+						</div>
+
+						<div class="event-filter-row genres">
+							<label class="event-filter-enable">
+								<input type="checkbox" name="genres_enabled" bind:checked={filterGenresEnabled} />
+								Only these genres
+							</label>
+							<div class="event-filter-genre-input" class:disabled={!filterGenresEnabled}>
+								<TagInput tags={filterGenreValues} ontags={(t) => (filterGenreValues = t)} placeholder="Add genre…" />
+							</div>
+							<input type="hidden" name="genre_values" value={JSON.stringify(filterGenreValues)} />
+						</div>
+
+						<div class="event-filter-actions">
+							{#if (form as any)?.filtersSaved}<span class="filters-saved-msg">Saved.</span>{/if}
+							<button type="submit" class="btn btn-primary save-btn">Save filters</button>
+						</div>
+					</form>
+				{/if}
+			{/each}
+		</div>
 
 		<div class="danger-zone">
 			<h3 class="danger-title">Danger Zone</h3>
@@ -649,6 +738,25 @@
 						<div class="field">
 							<input id="ev-end" name="end_time" type="time" value={eventModal.editing?.end_time ?? ''} />
 						</div>
+					</div>
+					<div class="form-field">
+						<label for="ev-pay-min">Pay — min ($)</label>
+						<div class="field">
+							<input id="ev-pay-min" name="pay_min" type="number" min="0" step="1" placeholder="Optional" value={eventModal.editing?.pay_min ?? ''} />
+						</div>
+					</div>
+					<div class="form-field">
+						<label for="ev-pay-max">Pay — max ($)</label>
+						<div class="field">
+							<input id="ev-pay-max" name="pay_max" type="number" min="0" step="1" placeholder="Optional" value={eventModal.editing?.pay_max ?? ''} />
+						</div>
+					</div>
+					<div class="form-field full">
+						<label for="ev-genres">Genres</label>
+						<div class="field">
+							<TagInput tags={eventGenres} ontags={(t) => (eventGenres = t)} placeholder="Add genre… (Enter or comma)" />
+						</div>
+						<input type="hidden" name="genres" value={JSON.stringify(eventGenres)} />
 					</div>
 					<div class="form-field full">
 						<label for="ev-desc">Description</label>
@@ -762,6 +870,120 @@
 		font-size: 0.875rem;
 		font-weight: 600;
 		color: var(--color-text);
+		display: flex;
+		align-items: center;
+		gap: 8px;
+	}
+
+	.filter-toggle-btn {
+		display: inline-flex;
+		align-items: center;
+		gap: 4px;
+		background: none;
+		border: 1.5px solid var(--color-border);
+		border-radius: var(--radius-pill);
+		padding: 2px 9px;
+		font-size: 0.7rem;
+		font-weight: 600;
+		color: var(--color-text-muted);
+		cursor: pointer;
+		transition: border-color 0.15s, color 0.15s;
+	}
+
+	.filter-toggle-btn:hover {
+		border-color: var(--color-primary);
+		color: var(--color-primary-deep);
+	}
+
+	.filter-toggle-btn svg {
+		transition: transform 0.15s;
+	}
+
+	.filter-toggle-btn svg.flipped {
+		transform: rotate(180deg);
+	}
+
+	.event-filter-panel {
+		display: flex;
+		flex-direction: column;
+		gap: 12px;
+		background: var(--color-bg);
+		border: 1px solid var(--color-border);
+		border-radius: var(--radius-md);
+		padding: 16px;
+		margin-top: 4px;
+	}
+
+	.event-filter-intro {
+		font-size: 0.8rem;
+		color: var(--color-text-muted);
+		margin: 0;
+	}
+
+	.event-filter-row {
+		display: flex;
+		align-items: center;
+		gap: 12px;
+		flex-wrap: wrap;
+	}
+
+	.event-filter-enable {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		font-size: 0.85rem;
+		font-weight: 600;
+		color: var(--color-text);
+		min-width: 190px;
+	}
+
+	.event-filter-row select,
+	.event-filter-pay-input input {
+		padding: 7px 10px;
+		border: 1.5px solid var(--color-border);
+		border-radius: var(--radius-sm);
+		font-size: 0.85rem;
+		font-family: inherit;
+		color: var(--color-text);
+		background: var(--color-surface);
+	}
+
+	.event-filter-pay-input {
+		display: flex;
+		align-items: center;
+		gap: 4px;
+	}
+
+	.event-filter-pay-input input {
+		width: 90px;
+	}
+
+	.event-filter-row.genres {
+		align-items: flex-start;
+	}
+
+	.event-filter-genre-input {
+		flex: 1;
+		min-width: 200px;
+	}
+
+	.event-filter-genre-input.disabled {
+		opacity: 0.5;
+		pointer-events: none;
+	}
+
+	.event-filter-actions {
+		display: flex;
+		align-items: center;
+		justify-content: flex-end;
+		gap: 10px;
+		margin-top: 4px;
+	}
+
+	.filters-saved-msg {
+		font-size: 0.8rem;
+		font-weight: 600;
+		color: #16a34a;
 	}
 
 	.toggle-sm {

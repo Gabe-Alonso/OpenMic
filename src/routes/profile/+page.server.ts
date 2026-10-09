@@ -6,6 +6,25 @@ import { PUBLIC_SUPABASE_URL } from '$env/static/public';
 import { notifyNearbyUsersOfEvent } from '$lib/server/notify';
 import type { Actions, PageServerLoad } from './$types';
 
+function parseEventPayAndGenres(data: FormData): { payMin: number | null; payMax: number | null; genres: string[] } {
+	const payMinRaw = data.get('pay_min') as string;
+	const payMaxRaw = data.get('pay_max') as string;
+	const payMin = payMinRaw ? Number(payMinRaw) : null;
+	const payMax = payMaxRaw ? Number(payMaxRaw) : null;
+	const genresRaw = data.get('genres') as string;
+	let genres: string[] = [];
+	try {
+		genres = genresRaw ? JSON.parse(genresRaw) : [];
+	} catch {
+		genres = [];
+	}
+	return {
+		payMin: payMin != null && Number.isFinite(payMin) ? payMin : null,
+		payMax: payMax != null && Number.isFinite(payMax) ? payMax : null,
+		genres: Array.isArray(genres) ? genres.filter((g): g is string => typeof g === 'string').slice(0, 10) : []
+	};
+}
+
 export const load: PageServerLoad = async ({ locals: { safeGetSession, supabase } }) => {
 	const { user } = await safeGetSession();
 	if (!user) throw redirect(303, '/signin');
@@ -116,16 +135,26 @@ export const actions: Actions = {
 		return {};
 	},
 
-	updateNotificationPreferences: async ({ request, locals: { supabase, safeGetSession } }) => {
+	// One row's form submits here at a time (just its own type's two
+	// checkboxes), not all five — so this only ever touches that one type,
+	// merged into whatever's already stored. nearby_event's `filters` object
+	// in particular must survive a plain email/in_app toggle untouched.
+	updateNotificationPreference: async ({ request, locals: { supabase, safeGetSession } }) => {
 		const { user } = await safeGetSession();
 		if (!user) throw redirect(303, '/signin');
 
 		const data = await request.formData();
-		const types = ['new_follower', 'new_comment', 'band_join_request', 'band_join_accepted', 'nearby_event'];
-		const preferences: Record<string, { email: boolean; in_app: boolean }> = {};
-		for (const type of types) {
-			preferences[type] = { email: data.has(`${type}_email`), in_app: data.has(`${type}_in_app`) };
-		}
+		const type = data.get('type') as string;
+		const validTypes = ['new_follower', 'new_comment', 'band_join_request', 'band_join_accepted', 'nearby_event'];
+		if (!validTypes.includes(type)) return fail(400, { toggleError: 'Invalid notification type' });
+
+		const { data: profile } = await supabase.from('profiles').select('notification_preferences').eq('id', user.id).maybeSingle();
+		const existing = (profile?.notification_preferences as Record<string, any>) ?? {};
+
+		const preferences = {
+			...existing,
+			[type]: { ...existing[type], email: data.has('email'), in_app: data.has('in_app') }
+		};
 
 		const { error } = await supabase
 			.from('profiles')
@@ -134,6 +163,48 @@ export const actions: Actions = {
 
 		if (error) return fail(500, { toggleError: error.message });
 		return {};
+	},
+
+	updateNearbyEventFilters: async ({ request, locals: { supabase, safeGetSession } }) => {
+		const { user } = await safeGetSession();
+		if (!user) throw redirect(303, '/signin');
+
+		const data = await request.formData();
+		const maxMiles = Number(data.get('max_miles')) || 50;
+		const minPay = Number(data.get('min_pay')) || 0;
+		let genreValues: string[] = [];
+		try {
+			genreValues = JSON.parse((data.get('genre_values') as string) ?? '[]');
+		} catch {
+			genreValues = [];
+		}
+
+		const { data: profile } = await supabase.from('profiles').select('notification_preferences').eq('id', user.id).maybeSingle();
+		const existing = (profile?.notification_preferences as Record<string, any>) ?? {};
+		const existingNearby = existing.nearby_event ?? { email: true, in_app: true };
+
+		const preferences = {
+			...existing,
+			nearby_event: {
+				...existingNearby,
+				filters: {
+					distance: { enabled: data.has('distance_enabled'), max_miles: maxMiles },
+					pay: { enabled: data.has('pay_enabled'), min_pay: minPay },
+					genres: {
+						enabled: data.has('genres_enabled'),
+						values: Array.isArray(genreValues) ? genreValues.filter((g): g is string => typeof g === 'string').slice(0, 10) : []
+					}
+				}
+			}
+		};
+
+		const { error } = await supabase
+			.from('profiles')
+			.update({ notification_preferences: preferences, updated_at: new Date().toISOString() })
+			.eq('id', user.id);
+
+		if (error) return fail(500, { toggleError: error.message });
+		return { filtersSaved: true };
 	},
 
 	createEvent: async ({ request, url, locals: { supabase, safeGetSession } }) => {
@@ -146,18 +217,24 @@ export const actions: Actions = {
 		if (!title?.trim()) return fail(400, { eventError: 'Title is required' });
 		if (title.length > 200) return fail(400, { eventError: 'Title must be 200 characters or fewer' });
 		if (description && description.length > 1000) return fail(400, { eventError: 'Description must be 1000 characters or fewer' });
+
+		const { payMin, payMax, genres } = parseEventPayAndGenres(data);
+
 		const { error } = await supabase.from('venue_events').insert({
 			profile_id: user.id,
 			title,
 			date,
 			start_time: (data.get('start_time') as string) || null,
 			end_time: (data.get('end_time') as string) || null,
-			description: description || null
+			description: description || null,
+			pay_min: payMin,
+			pay_max: payMax,
+			genres
 		});
 		if (error) return fail(500, { eventError: error.message });
 
 		const { data: hostProfile } = await supabase.from('profiles').select('full_name').eq('id', user.id).maybeSingle();
-		await notifyNearbyUsersOfEvent(user.id, hostProfile?.full_name ?? 'Someone nearby', title, date, url.origin);
+		await notifyNearbyUsersOfEvent(user.id, hostProfile?.full_name ?? 'Someone nearby', title, date, url.origin, payMin, payMax, genres);
 
 		return { eventCreated: true };
 	},
@@ -172,12 +249,18 @@ export const actions: Actions = {
 		if (!title?.trim()) return fail(400, { eventError: 'Title is required' });
 		if (title.length > 200) return fail(400, { eventError: 'Title must be 200 characters or fewer' });
 		if (description && description.length > 1000) return fail(400, { eventError: 'Description must be 1000 characters or fewer' });
+
+		const { payMin, payMax, genres } = parseEventPayAndGenres(data);
+
 		const { error } = await supabase.from('venue_events').update({
 			title,
 			date: data.get('date') as string,
 			start_time: (data.get('start_time') as string) || null,
 			end_time: (data.get('end_time') as string) || null,
-			description: description || null
+			description: description || null,
+			pay_min: payMin,
+			pay_max: payMax,
+			genres
 		}).eq('id', eventId).eq('profile_id', user.id);
 		if (error) return fail(500, { eventError: error.message });
 		return { eventUpdated: true };
