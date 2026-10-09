@@ -109,10 +109,70 @@ describe.skipIf(!configured)('notifications (integration)', () => {
 			await admin.from('notifications').delete().eq('recipient_id', bob.user.id).eq('type', 'nearby_event');
 		});
 
+		it("notifies a far user who has extended their own distance filter, and finds them even though they're past the 50mi default", async () => {
+			const far = await makeUser('notif-far-extended', false);
+			created.push(far.id);
+			await admin
+				.from('profiles')
+				.update({
+					location_lat: FAR.lat,
+					location_lng: FAR.lng,
+					discoverable: true,
+					notification_preferences: { nearby_event: { email: true, in_app: true, filters: { distance: { enabled: true, max_miles: 250 } } } }
+				})
+				.eq('id', far.id);
+
+			await notifyNearbyUsersOfEvent(alice.user.id, 'Alice', 'Open Mic Night', '2026-05-01', 'https://example.com');
+
+			const { data: farRows } = await admin.from('notifications').select('id').eq('recipient_id', far.id).eq('type', 'nearby_event');
+			expect(farRows).toHaveLength(1);
+
+			await admin.from('notifications').delete().eq('recipient_id', far.id).eq('type', 'nearby_event');
+			await admin.from('notifications').delete().eq('recipient_id', bob.user.id).eq('type', 'nearby_event');
+		});
+
+		it('respects a pay filter end to end, through notifyNearbyUsersOfEvent', async () => {
+			await admin
+				.from('profiles')
+				.update({ notification_preferences: { nearby_event: { email: true, in_app: true, filters: { pay: { enabled: true, min_pay: 100 } } } } })
+				.eq('id', bob.user.id);
+
+			await notifyNearbyUsersOfEvent(alice.user.id, 'Alice', 'Underpaid Gig', '2026-05-01', 'https://example.com', 20, 50, []);
+			const { data: underpaidRows } = await admin.from('notifications').select('id').eq('recipient_id', bob.user.id).eq('type', 'nearby_event');
+			expect(underpaidRows ?? []).toHaveLength(0);
+
+			await notifyNearbyUsersOfEvent(alice.user.id, 'Alice', 'Well-Paid Gig', '2026-05-01', 'https://example.com', 150, 200, []);
+			const { data: paidRows } = await admin.from('notifications').select('id').eq('recipient_id', bob.user.id).eq('type', 'nearby_event');
+			expect(paidRows).toHaveLength(1);
+
+			await admin.from('notifications').delete().eq('recipient_id', bob.user.id).eq('type', 'nearby_event');
+			await admin.from('profiles').update({ notification_preferences: { nearby_event: { email: true, in_app: true } } }).eq('id', bob.user.id);
+		});
+
+		it('respects a genre filter end to end, through notifyNearbyUsersOfEvent', async () => {
+			await admin
+				.from('profiles')
+				.update({
+					notification_preferences: { nearby_event: { email: true, in_app: true, filters: { genres: { enabled: true, values: ['jazz'] } } } }
+				})
+				.eq('id', bob.user.id);
+
+			await notifyNearbyUsersOfEvent(alice.user.id, 'Alice', 'Metal Night', '2026-05-01', 'https://example.com', null, null, ['metal']);
+			const { data: wrongGenreRows } = await admin.from('notifications').select('id').eq('recipient_id', bob.user.id).eq('type', 'nearby_event');
+			expect(wrongGenreRows ?? []).toHaveLength(0);
+
+			await notifyNearbyUsersOfEvent(alice.user.id, 'Alice', 'Jazz Night', '2026-05-01', 'https://example.com', null, null, ['jazz', 'blues']);
+			const { data: rightGenreRows } = await admin.from('notifications').select('id').eq('recipient_id', bob.user.id).eq('type', 'nearby_event');
+			expect(rightGenreRows).toHaveLength(1);
+
+			await admin.from('notifications').delete().eq('recipient_id', bob.user.id).eq('type', 'nearby_event');
+			await admin.from('profiles').update({ notification_preferences: { nearby_event: { email: true, in_app: true } } }).eq('id', bob.user.id);
+		});
+
 		it("does nothing when the host has no location set", async () => {
 			await admin.from('profiles').update({ location_lat: null, location_lng: null }).eq('id', alice.user.id);
 			await notifyNearbyUsersOfEvent(alice.user.id, 'Alice', 'Open Mic Night', '2026-05-01', 'https://example.com');
-			const { data: rows } = await admin.from('notifications').select('id').eq('type', 'nearby_event');
+			const { data: rows } = await admin.from('notifications').select('id').eq('recipient_id', bob.user.id).eq('type', 'nearby_event');
 			expect(rows ?? []).toHaveLength(0);
 		});
 	});

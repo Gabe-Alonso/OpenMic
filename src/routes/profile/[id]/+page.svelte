@@ -180,6 +180,11 @@
 		const hour = h % 12 || 12;
 		return `${hour}:${String(m).padStart(2,'0')} ${ampm}`;
 	}
+	function formatPay(payMin: number | null, payMax: number | null): string {
+		if (payMin && payMax && payMin !== payMax) return `$${payMin}–$${payMax}`;
+		if (payMin || payMax) return `$${payMin ?? payMax}`;
+		return '';
+	}
 	function formatSelectedDay(dateStr: string): string {
 		const [y, mo, d] = dateStr.split('-').map(Number);
 		return new Date(y, mo - 1, d).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
@@ -459,6 +464,14 @@
 								<div class="event-info">
 									<p class="event-title">{ev.title}</p>
 									{#if ev.description}<p class="event-desc">{ev.description}</p>{/if}
+									{#if ev.pay_min || ev.pay_max}
+										<p class="event-pay">{formatPay(ev.pay_min, ev.pay_max)}</p>
+									{/if}
+									{#if ev.genres?.length}
+										<div class="event-genre-tags">
+											{#each ev.genres as g}<span class="event-genre-tag">#{g}</span>{/each}
+										</div>
+									{/if}
 								</div>
 							</div>
 						{/each}
@@ -1260,6 +1273,26 @@
 		color: var(--color-text-muted);
 		margin: 4px 0 0;
 		line-height: 1.5;
+	}
+	.event-pay {
+		font-size: 0.8rem;
+		font-weight: 700;
+		color: var(--color-primary-deep);
+		margin: 6px 0 0;
+	}
+	.event-genre-tags {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 4px;
+		margin-top: 6px;
+	}
+	.event-genre-tag {
+		font-size: 0.7rem;
+		padding: 2px 8px;
+		background: var(--color-primary-light);
+		color: var(--color-primary-deep);
+		border-radius: 999px;
+		font-weight: 600;
 	}
 	.no-events-msg {
 		font-size: 0.875rem;
