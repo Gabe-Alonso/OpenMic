@@ -8,7 +8,8 @@ export type NotificationType =
 	| 'new_comment'
 	| 'band_join_request'
 	| 'band_join_accepted'
-	| 'nearby_event';
+	| 'nearby_event'
+	| 'venue_claim_decided';
 
 type ChannelPrefs = { email?: boolean; in_app?: boolean };
 

@@ -10,13 +10,20 @@ import { env } from '$env/dynamic/private';
 //
 // The integration test harness points its own actors at a dedicated test
 // project via TEST_SUPABASE_* (see tests/integration/helpers.ts), never at
-// production. Preferring those vars here, when present, keeps this client
-// pointed at the same project as the rest of a test run — they're never set
-// in any real deployment (production, or Vercel preview, which points its
-// own PUBLIC_SUPABASE_URL at the test project directly instead), so this
-// only changes behavior under test.
-const SUPABASE_URL = env.TEST_SUPABASE_URL || PUBLIC_SUPABASE_URL;
-const SERVICE_ROLE_KEY = env.TEST_SUPABASE_SERVICE_ROLE_KEY || SUPABASE_SERVICE_ROLE_KEY;
+// production, and this client needs to land in the same project as the rest
+// of a test run. But gating this purely on "are TEST_SUPABASE_* set" was
+// wrong: local .env has them too (for convenience running integration tests
+// locally), and `npm run dev` loads the same .env file vitest does — so that
+// version of this fix silently misdirected every admin-client write during
+// local dev as well, not just test runs, with no error (just 0 rows affected
+// against whichever project didn't have the row). Real deployments were
+// never at risk (Vercel never sets TEST_SUPABASE_*), only local manual
+// testing was. Gating on `process.env.VITEST` — set automatically by vitest,
+// never by `vite dev` or a real deployment — actually scopes this to test
+// runs only.
+const underTest = process.env.VITEST === 'true';
+const SUPABASE_URL = (underTest && env.TEST_SUPABASE_URL) || PUBLIC_SUPABASE_URL;
+const SERVICE_ROLE_KEY = (underTest && env.TEST_SUPABASE_SERVICE_ROLE_KEY) || SUPABASE_SERVICE_ROLE_KEY;
 
 let client: SupabaseClient | null = null;
 export function supabaseAdmin(): SupabaseClient {
