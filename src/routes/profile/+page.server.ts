@@ -135,23 +135,26 @@ export const actions: Actions = {
 		return {};
 	},
 
-	updateNotificationPreferences: async ({ request, locals: { supabase, safeGetSession } }) => {
+	// One row's form submits here at a time (just its own type's two
+	// checkboxes), not all five — so this only ever touches that one type,
+	// merged into whatever's already stored. nearby_event's `filters` object
+	// in particular must survive a plain email/in_app toggle untouched.
+	updateNotificationPreference: async ({ request, locals: { supabase, safeGetSession } }) => {
 		const { user } = await safeGetSession();
 		if (!user) throw redirect(303, '/signin');
 
 		const data = await request.formData();
-		const types = ['new_follower', 'new_comment', 'band_join_request', 'band_join_accepted', 'nearby_event'];
+		const type = data.get('type') as string;
+		const validTypes = ['new_follower', 'new_comment', 'band_join_request', 'band_join_accepted', 'nearby_event'];
+		if (!validTypes.includes(type)) return fail(400, { toggleError: 'Invalid notification type' });
 
-		// Merge rather than overwrite: nearby_event carries a `filters` object
-		// alongside email/in_app that this form never touches — blindly
-		// replacing the whole thing would silently wipe out saved filters.
 		const { data: profile } = await supabase.from('profiles').select('notification_preferences').eq('id', user.id).maybeSingle();
 		const existing = (profile?.notification_preferences as Record<string, any>) ?? {};
 
-		const preferences: Record<string, any> = { ...existing };
-		for (const type of types) {
-			preferences[type] = { ...existing[type], email: data.has(`${type}_email`), in_app: data.has(`${type}_in_app`) };
-		}
+		const preferences = {
+			...existing,
+			[type]: { ...existing[type], email: data.has('email'), in_app: data.has('in_app') }
+		};
 
 		const { error } = await supabase
 			.from('profiles')

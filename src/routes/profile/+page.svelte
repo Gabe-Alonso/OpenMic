@@ -552,22 +552,23 @@
 		<p class="setting-desc notif-prefs-desc">
 			Every notification can go out by email, show up in-app, both, or neither — toggle each independently.
 		</p>
-		<form method="POST" action="?/updateNotificationPreferences" use:enhance>
-			<div class="notif-pref-grid">
-				<div class="notif-pref-header">
-					<span></span>
-					<span>Email</span>
-					<span>In-app</span>
-				</div>
-				{#each [
-					{ key: 'new_follower', label: 'New followers' },
-					{ key: 'nearby_event', label: 'Events near you' },
-					{ key: 'new_comment', label: 'Comments on your posts' },
-					{ key: 'band_join_request', label: 'Band join requests' },
-					{ key: 'band_join_accepted', label: 'Band request accepted' }
-				] as pref}
-					{@const prefs = (data.profile as any)?.notification_preferences ?? {}}
-					{@const current = prefs[pref.key] ?? { email: true, in_app: true }}
+		<div class="notif-pref-grid">
+			<div class="notif-pref-header">
+				<span></span>
+				<span>Email</span>
+				<span>In-app</span>
+			</div>
+			{#each [
+				{ key: 'new_follower', label: 'New followers' },
+				{ key: 'nearby_event', label: 'Events near you' },
+				{ key: 'new_comment', label: 'Comments on your posts' },
+				{ key: 'band_join_request', label: 'Band join requests' },
+				{ key: 'band_join_accepted', label: 'Band request accepted' }
+			] as pref}
+				{@const prefs = (data.profile as any)?.notification_preferences ?? {}}
+				{@const current = prefs[pref.key] ?? { email: true, in_app: true }}
+				<form method="POST" action="?/updateNotificationPreference" use:enhance>
+					<input type="hidden" name="type" value={pref.key} />
 					<div class="notif-pref-row">
 						<span class="notif-pref-label">
 							{pref.label}
@@ -588,7 +589,7 @@
 						<label class="toggle-wrap toggle-sm">
 							<input
 								type="checkbox"
-								name="{pref.key}_email"
+								name="email"
 								checked={current.email ?? true}
 								onchange={(e) => e.currentTarget.form?.requestSubmit()}
 							/>
@@ -599,7 +600,7 @@
 						<label class="toggle-wrap toggle-sm">
 							<input
 								type="checkbox"
-								name="{pref.key}_in_app"
+								name="in_app"
 								checked={current.in_app ?? true}
 								onchange={(e) => e.currentTarget.form?.requestSubmit()}
 							/>
@@ -608,56 +609,56 @@
 							</span>
 						</label>
 					</div>
-				{/each}
-			</div>
-		</form>
+				</form>
 
-		{#if showEventFilters}
-			<form method="POST" action="?/updateNearbyEventFilters" use:enhance class="event-filter-panel">
-				<p class="event-filter-intro">
-					Narrow down which nearby events actually notify you. Each filter is off by default — leave it off to be notified about everything nearby.
-				</p>
+				{#if pref.key === 'nearby_event' && showEventFilters}
+					<form method="POST" action="?/updateNearbyEventFilters" use:enhance class="event-filter-panel">
+						<p class="event-filter-intro">
+							Narrow down which nearby events actually notify you. Each filter is off by default — leave it off to be notified about everything nearby.
+						</p>
 
-				<div class="event-filter-row">
-					<label class="event-filter-enable">
-						<input type="checkbox" name="distance_enabled" bind:checked={filterDistanceEnabled} />
-						Only within
-					</label>
-					<select name="max_miles" bind:value={filterDistanceMiles} disabled={!filterDistanceEnabled}>
-						{#each [10, 25, 50, 100, 250] as mi}
-							<option value={mi}>{mi} miles</option>
-						{/each}
-					</select>
-				</div>
+						<div class="event-filter-row">
+							<label class="event-filter-enable">
+								<input type="checkbox" name="distance_enabled" bind:checked={filterDistanceEnabled} />
+								Only within
+							</label>
+							<select name="max_miles" bind:value={filterDistanceMiles} disabled={!filterDistanceEnabled}>
+								{#each [10, 25, 50, 100, 250] as mi}
+									<option value={mi}>{mi} miles</option>
+								{/each}
+							</select>
+						</div>
 
-				<div class="event-filter-row">
-					<label class="event-filter-enable">
-						<input type="checkbox" name="pay_enabled" bind:checked={filterPayEnabled} />
-						Only paying at least
-					</label>
-					<div class="event-filter-pay-input">
-						<span>$</span>
-						<input type="number" name="min_pay" min="0" step="1" bind:value={filterMinPay} disabled={!filterPayEnabled} />
-					</div>
-				</div>
+						<div class="event-filter-row">
+							<label class="event-filter-enable">
+								<input type="checkbox" name="pay_enabled" bind:checked={filterPayEnabled} />
+								Only paying at least
+							</label>
+							<div class="event-filter-pay-input">
+								<span>$</span>
+								<input type="number" name="min_pay" min="0" step="1" bind:value={filterMinPay} disabled={!filterPayEnabled} />
+							</div>
+						</div>
 
-				<div class="event-filter-row genres">
-					<label class="event-filter-enable">
-						<input type="checkbox" name="genres_enabled" bind:checked={filterGenresEnabled} />
-						Only these genres
-					</label>
-					<div class="event-filter-genre-input" class:disabled={!filterGenresEnabled}>
-						<TagInput tags={filterGenreValues} ontags={(t) => (filterGenreValues = t)} placeholder="Add genre…" />
-					</div>
-					<input type="hidden" name="genre_values" value={JSON.stringify(filterGenreValues)} />
-				</div>
+						<div class="event-filter-row genres">
+							<label class="event-filter-enable">
+								<input type="checkbox" name="genres_enabled" bind:checked={filterGenresEnabled} />
+								Only these genres
+							</label>
+							<div class="event-filter-genre-input" class:disabled={!filterGenresEnabled}>
+								<TagInput tags={filterGenreValues} ontags={(t) => (filterGenreValues = t)} placeholder="Add genre…" />
+							</div>
+							<input type="hidden" name="genre_values" value={JSON.stringify(filterGenreValues)} />
+						</div>
 
-				<div class="event-filter-actions">
-					{#if (form as any)?.filtersSaved}<span class="filters-saved-msg">Saved.</span>{/if}
-					<button type="submit" class="btn btn-primary save-btn">Save filters</button>
-				</div>
-			</form>
-		{/if}
+						<div class="event-filter-actions">
+							{#if (form as any)?.filtersSaved}<span class="filters-saved-msg">Saved.</span>{/if}
+							<button type="submit" class="btn btn-primary save-btn">Save filters</button>
+						</div>
+					</form>
+				{/if}
+			{/each}
+		</div>
 
 		<div class="danger-zone">
 			<h3 class="danger-title">Danger Zone</h3>
