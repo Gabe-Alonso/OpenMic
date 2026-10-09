@@ -1,15 +1,35 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { decodeCursor, applyCursor, paginateRows } from '$lib/server/pagination';
+import { applyCursor } from '$lib/server/pagination';
+import { embedEngagement, mergeFeedStreams, type FeedCandidate, type FeedCursor } from '$lib/server/feed';
 
 const PAGE_SIZE = 20;
+
+// A single `cursor` query param carries both sub-streams' positions —
+// authored posts and reposts-by-someone-I-follow paginate independently
+// (different tables, different timestamps) and get merged into one
+// chronological page. See $lib/server/feed.ts for why neither sub-cursor can
+// simply be "the last row fetched this round."
+function encodeFollowingCursor(c: { p: FeedCursor | null; r: FeedCursor | null }): string {
+	return Buffer.from(JSON.stringify(c), 'utf8').toString('base64url');
+}
+
+function decodeFollowingCursor(raw: string | null): { p: FeedCursor | null; r: FeedCursor | null } {
+	if (!raw) return { p: null, r: null };
+	try {
+		const parsed = JSON.parse(Buffer.from(raw, 'base64url').toString('utf8'));
+		return { p: parsed?.p ?? null, r: parsed?.r ?? null };
+	} catch {
+		return { p: null, r: null };
+	}
+}
 
 export const GET: RequestHandler = async ({ url, locals: { supabase, safeGetSession } }) => {
 	const { user } = await safeGetSession();
 	if (!user) return json({ error: 'Unauthorized' }, { status: 401 });
 
 	const includeFollowers = url.searchParams.get('include_followers') === 'true';
-	const cursor = decodeCursor(url.searchParams.get('cursor'));
+	const { p: postCursor, r: repostCursor } = decodeFollowingCursor(url.searchParams.get('cursor'));
 
 	const { data: followingRows } = await supabase
 		.from('follows')
@@ -27,31 +47,59 @@ export const GET: RequestHandler = async ({ url, locals: { supabase, safeGetSess
 	}
 
 	if (targetIds.size === 0) {
-		return json({ posts: [], likeCounts: {}, nextCursor: null });
+		return json({ posts: [], nextCursor: null });
 	}
+
+	const targetIdList = [...targetIds];
 
 	let postsQuery = supabase
 		.from('posts')
 		.select('*, post_media(*), profiles(id, full_name, avatar_url)')
-		.in('author_id', [...targetIds])
+		.in('author_id', targetIdList)
 		.order('created_at', { ascending: false })
 		.order('id', { ascending: false })
 		.limit(PAGE_SIZE + 1);
-	postsQuery = applyCursor(postsQuery, cursor);
+	postsQuery = applyCursor(postsQuery, postCursor);
 
-	const { data: posts } = await postsQuery;
-	const { page: postsData, nextCursor } = paginateRows(posts ?? [], PAGE_SIZE);
-	const likeCounts: Record<string, number> = {};
+	// Someone I follow reposting a post (by anyone, followed or not) also
+	// belongs in my following feed — that's the whole point of a repost.
+	let repostsQuery = supabase
+		.from('post_reposts')
+		.select(
+			`id, created_at,
+			 reposter:profiles!user_id(id, full_name, avatar_url),
+			 post:posts(*, post_media(*), profiles(id, full_name, avatar_url))`
+		)
+		.in('user_id', targetIdList)
+		.order('created_at', { ascending: false })
+		.order('id', { ascending: false })
+		.limit(PAGE_SIZE + 1);
+	repostsQuery = applyCursor(repostsQuery, repostCursor);
 
-	if (postsData.length > 0) {
-		const { data: likes } = await supabase
-			.from('post_likes')
-			.select('post_id')
-			.in('post_id', postsData.map((p) => p.id));
-		for (const like of likes ?? []) {
-			likeCounts[like.post_id] = (likeCounts[like.post_id] ?? 0) + 1;
-		}
-	}
+	const [{ data: postsRaw }, { data: repostsRaw }] = await Promise.all([postsQuery, repostsQuery]);
 
-	return json({ posts: postsData, likeCounts, nextCursor });
+	const postCandidates: FeedCandidate<Record<string, any>>[] = (postsRaw ?? []).map((p: any) => ({
+		...p,
+		repostedBy: null,
+		_sortAt: p.created_at,
+		_sortId: p.id,
+		_stream: 'a'
+	}));
+	const repostCandidates: FeedCandidate<Record<string, any>>[] = (repostsRaw ?? [])
+		.filter((r: any) => r.post)
+		.map((r: any) => ({
+			...r.post,
+			repostedBy: r.reposter,
+			_sortAt: r.created_at,
+			_sortId: r.id,
+			_stream: 'b'
+		}));
+
+	const { page, nextCursorA, nextCursorB } = mergeFeedStreams(postCandidates, repostCandidates, PAGE_SIZE, postCursor, repostCursor);
+	const cleanPage = page.map(({ _sortAt, _sortId, _stream, ...rest }) => rest) as { id: string }[];
+	const embedded = await embedEngagement(supabase, cleanPage, user.id);
+
+	const nextCursor = nextCursorA || nextCursorB ? encodeFollowingCursor({ p: nextCursorA, r: nextCursorB }) : null;
+
+	return json({ posts: embedded, nextCursor });
 };
