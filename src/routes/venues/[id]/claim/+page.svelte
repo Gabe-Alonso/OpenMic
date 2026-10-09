@@ -1,25 +1,19 @@
 <script lang="ts">
-	import type { PageData } from './$types';
+	import { enhance } from '$app/forms';
+	import type { PageData, ActionData } from './$types';
 
-	let { data }: { data: PageData } = $props();
+	let { data, form }: { data: PageData; form: ActionData } = $props();
 
-	let fullName = $state('');
-	let email = $state('');
 	let role = $state('owner');
-	let submitted = $state(false);
-
-	function handleSubmit(e: SubmitEvent) {
-		e.preventDefault();
-		submitted = true;
-	}
+	let submitting = $state(false);
 </script>
 
 <div class="claim-page">
-	<a href="/venues" class="back-link">
+	<a href="/venues/{data.venue.id}" class="back-link">
 		<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
 			<path d="M19 12H5M12 5l-7 7 7 7" />
 		</svg>
-		Back to Venues
+		Back to {data.venue.name}
 	</a>
 
 	<div class="auth-layout">
@@ -42,11 +36,13 @@
 			<ol class="steps">
 				<li>
 					<span class="step-num step-num-filled">1</span>
-					Tell us who you are
+					Tell us your role
 				</li>
 				<li>
 					<span class="step-num">2</span>
-					We verify your claim
+					{data.venue.website
+						? 'Instant approval if your email matches the venue\'s website domain'
+						: 'We review your claim'}
 				</li>
 				<li>
 					<span class="step-num">3</span>
@@ -56,32 +52,44 @@
 		</div>
 
 		<div class="card claim-card">
-			{#if submitted}
+			{#if form?.claimSubmitted}
 				<div class="success-state">
 					<div class="success-icon">
 						<svg width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
 					</div>
-					<h2>Request submitted!</h2>
-					<p>We'll review your claim for <strong>{data.venue.name}</strong> and contact you within a few days.</p>
-					<a href="/venues" class="btn btn-primary done-btn">Back to Venues</a>
+					{#if form.approved}
+						<h2>You're verified!</h2>
+						<p>Your email matched <strong>{data.venue.name}</strong>'s listed website, so your claim was approved instantly. You can now manage this venue's page.</p>
+					{:else}
+						<h2>Request submitted!</h2>
+						<p>We'll review your claim for <strong>{data.venue.name}</strong> and get back to you.</p>
+					{/if}
+					<a href="/venues/{data.venue.id}" class="btn btn-primary done-btn">View venue</a>
+				</div>
+			{:else if data.venue.claimed_profile_id}
+				<div class="info-state">
+					<p>This venue has already been claimed.</p>
+					<a href="/venues/{data.venue.id}" class="btn btn-primary done-btn">View venue</a>
+				</div>
+			{:else if !data.signedIn}
+				<div class="info-state">
+					<p>Sign in to claim this venue.</p>
+					<a href="/signin" class="btn btn-primary done-btn">Sign in</a>
+				</div>
+			{:else if data.myClaim?.status === 'pending'}
+				<div class="info-state">
+					<p>Your claim on <strong>{data.venue.name}</strong> is pending review. We'll let you know once it's decided.</p>
+					<a href="/venues/{data.venue.id}" class="btn btn-primary done-btn">View venue</a>
 				</div>
 			{:else}
-				<form class="form" onsubmit={handleSubmit}>
-					<p class="desc">If you own or manage this venue, fill in your details below. We'll verify your claim and link it to your account.</p>
-
-					<div class="form-field">
-						<label for="full-name">Your full name</label>
-						<div class="field">
-							<input id="full-name" type="text" placeholder="Jane Smith" bind:value={fullName} required />
-						</div>
-					</div>
-
-					<div class="form-field">
-						<label for="email">Contact email</label>
-						<div class="field">
-							<input id="email" type="email" placeholder="you@example.com" bind:value={email} required />
-						</div>
-					</div>
+				{#if data.myClaim?.status === 'rejected'}
+					<p class="rejected-note">Your previous claim on this venue wasn't approved. You're welcome to submit again if your situation has changed.</p>
+				{/if}
+				{#if form?.claimError}
+					<p class="error-banner" role="alert">{form.claimError}</p>
+				{/if}
+				<form class="form" method="POST" use:enhance={() => { submitting = true; return async ({ update }) => { await update(); submitting = false; }; }}>
+					<p class="desc">If you own or manage this venue, let us know your role below.</p>
 
 					<div class="form-field">
 						<span id="role-label">Your role</span>
@@ -95,8 +103,15 @@
 						</div>
 					</div>
 
-					<button type="submit" class="btn btn-primary submit-btn" disabled={!fullName || !email}>
-						Submit Claim Request
+					<div class="form-field">
+						<label for="note">Anything else we should know? (optional)</label>
+						<div class="field">
+							<textarea id="note" name="note" rows="3" placeholder="e.g. how you're connected to this venue" maxlength="1000"></textarea>
+						</div>
+					</div>
+
+					<button type="submit" class="btn btn-primary submit-btn" disabled={submitting}>
+						{submitting ? 'Submitting…' : 'Submit Claim Request'}
 						<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
 					</button>
 				</form>
@@ -286,6 +301,18 @@
 		color: var(--color-text);
 	}
 
+	.field textarea {
+		width: 100%;
+		padding: 10px 12px;
+		border: 1.5px solid var(--color-border);
+		border-radius: var(--radius-md);
+		font-size: 0.9rem;
+		font-family: inherit;
+		color: var(--color-text);
+		background: var(--color-surface);
+		resize: vertical;
+	}
+
 	.role-options {
 		display: grid;
 		grid-template-columns: repeat(auto-fit, minmax(min(130px, 100%), 1fr));
@@ -323,7 +350,27 @@
 
 	.submit-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
-	/* Success state */
+	.error-banner {
+		background: var(--color-danger-bg);
+		color: var(--color-danger);
+		border: 1px solid var(--color-danger-border);
+		border-radius: var(--radius-md);
+		padding: 10px 14px;
+		font-size: 0.85rem;
+		margin: 0 0 4px;
+	}
+
+	.rejected-note {
+		font-size: 0.85rem;
+		color: var(--color-text-muted);
+		background: var(--color-bg);
+		border-radius: var(--radius-md);
+		padding: 10px 14px;
+		margin: 0 0 4px;
+	}
+
+	/* Info / success states */
+	.info-state,
 	.success-state {
 		display: flex;
 		flex-direction: column;
@@ -331,6 +378,13 @@
 		gap: 16px;
 		text-align: center;
 		padding: 24px 0;
+	}
+
+	.info-state p {
+		font-size: 1rem;
+		color: var(--color-text-strong);
+		line-height: 1.6;
+		max-width: 360px;
 	}
 
 	.success-icon {

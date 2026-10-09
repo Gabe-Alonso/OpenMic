@@ -79,3 +79,16 @@ export function nearbyEventEmail(hostName: string, eventTitle: string, eventDate
 		html: `<p><strong>${host}</strong> just posted an event near you: <strong>${title}</strong> on ${escapeHtml(eventDate)}.</p><p><a href="${profileUrl}">View details</a></p>`
 	};
 }
+
+export function venueClaimDecidedEmail(venueName: string, approved: boolean, venueUrl: string) {
+	const name = escapeHtml(venueName);
+	return approved
+		? {
+				subject: `You're verified! Your claim on ${venueName} was approved`,
+				html: `<p>Your claim on <strong>${name}</strong> has been approved. You can now manage this venue's page.</p><p><a href="${venueUrl}">View the venue</a></p>`
+			}
+		: {
+				subject: `Update on your claim for ${venueName}`,
+				html: `<p>Your claim on <strong>${name}</strong> wasn't approved this time. If this is a mistake or your situation has changed, you're welcome to submit it again.</p><p><a href="${venueUrl}">View the venue</a></p>`
+			};
+}
