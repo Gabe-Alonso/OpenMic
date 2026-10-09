@@ -517,45 +517,54 @@
 					{:else}
 						<div
 							id="venue-{venue._id}"
-							class="venue-card"
+							class="venue-card seeded-card"
 							class:active={activeVenueId === venue._id}
 						>
-							<div class="venue-avatar seeded-avatar">
-								<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-									<path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
-									<polyline points="9 22 9 12 15 12 15 22"/>
-								</svg>
-							</div>
-							<div class="venue-info">
-								<div class="venue-name-row">
-									<p class="venue-name">{venue.name}</p>
-									{#if venue.claimed_profile_id}
-										<span class="badge claimed-badge">
-											<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
-											Claimed
-										</span>
+							<a
+								href={venue.claimed_profile_id ? `/profile/${venue.claimed_profile_id}` : `/venues/${venue.id}`}
+								class="venue-card-link"
+							>
+								<div class="venue-avatar seeded-avatar">
+									<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+										<path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+										<polyline points="9 22 9 12 15 12 15 22"/>
+									</svg>
+								</div>
+								<div class="venue-info">
+									<div class="venue-name-row">
+										<p class="venue-name">{venue.name}</p>
+										{#if venue.claimed_profile_id}
+											<span class="badge claimed-badge">
+												<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+												Claimed
+											</span>
+										{/if}
+									</div>
+									{#if venue.address || venue.city}
+										<p class="venue-location">{[venue.address, venue.city].filter(Boolean).join(', ')}</p>
+									{/if}
+									{#if venue.venue_types?.length > 0}
+										<div class="venue-types">
+											{#each venue.venue_types as type}
+												<span class="venue-type">{type.replace(/_/g, ' ')}</span>
+											{/each}
+										</div>
 									{/if}
 								</div>
-								{#if venue.address || venue.city}
-									<p class="venue-location">{[venue.address, venue.city].filter(Boolean).join(', ')}</p>
-								{/if}
-								{#if venue.venue_types?.length > 0}
-									<div class="venue-types">
-										{#each venue.venue_types as type}
-											<span class="venue-type">{type.replace(/_/g, ' ')}</span>
-										{/each}
-									</div>
-								{/if}
-								{#if venue.website}
-									<a href={venue.website} target="_blank" rel="noopener" class="venue-website">{venue.website.replace(/^https?:\/\//, '')}</a>
-								{/if}
-								{#if venue.phone}
-									<p class="venue-phone">{venue.phone}</p>
-								{/if}
-								{#if !venue.claimed_profile_id}
-									<a href="/venues/{venue.id}/claim" class="claim-btn">Claim this venue</a>
-								{/if}
-							</div>
+							</a>
+							{#if venue.website || venue.phone || !venue.claimed_profile_id}
+								<div class="venue-info venue-card-extra">
+									{#if venue.website}
+										<a href={venue.website} target="_blank" rel="noopener" class="venue-website">{venue.website.replace(/^https?:\/\//, '')}</a>
+									{/if}
+									{#if venue.phone}
+										<p class="venue-phone">{venue.phone}</p>
+									{/if}
+									{#if !venue.claimed_profile_id}
+										<a href="/venues/{venue.id}/claim" class="claim-btn">Claim this venue</a>
+									{/if}
+								</div>
+							{/if}
 						</div>
 					{/if}
 				{/each}
@@ -906,6 +915,25 @@
 		text-decoration: none;
 		color: var(--color-text);
 		transition: border-color 0.15s, box-shadow 0.15s, transform 0.15s;
+	}
+
+	.venue-card.seeded-card {
+		flex-direction: column;
+	}
+
+	.venue-card-link {
+		display: flex;
+		gap: 14px;
+		text-decoration: none;
+		color: inherit;
+	}
+
+	.venue-card-extra {
+		display: flex;
+		align-items: center;
+		gap: 12px;
+		margin-left: 58px;
+		flex-wrap: wrap;
 	}
 
 	.venue-card:hover,
