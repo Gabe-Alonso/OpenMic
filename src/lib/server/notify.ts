@@ -1,6 +1,7 @@
 import { supabaseAdmin } from '$lib/server/supabaseAdmin';
 import { sendEmail, nearbyEventEmail } from '$lib/server/email';
 import { boundingBoxForRadius, applyBoundingBox, withinRadius } from '$lib/server/geo';
+import { distanceMiles } from '$lib/geo';
 
 export type NotificationType =
 	| 'new_follower'
@@ -66,7 +67,47 @@ export async function notify(
 	}
 }
 
-const NEARBY_EVENT_RADIUS_MILES = 50;
+const NEARBY_EVENT_DEFAULT_RADIUS_MILES = 50;
+// Widest radius a recipient's own distance filter can request — the
+// candidate fetch below is bounded by this, not the default, so someone who
+// opts into a larger radius still gets found.
+const NEARBY_EVENT_MAX_RADIUS_MILES = 250;
+
+export type NearbyEventFilters = {
+	distance?: { enabled?: boolean; max_miles?: number };
+	pay?: { enabled?: boolean; min_pay?: number };
+	genres?: { enabled?: boolean; values?: string[] };
+};
+
+// Each enabled filter must pass; a filter left off (the default for all
+// three) never narrows anything. A filter that's enabled but has nothing
+// for the event to match against (no pay listed, no genres picked) fails
+// closed rather than open — can't confirm a match, so don't notify.
+export function passesNearbyEventFilters(
+	filters: NearbyEventFilters | undefined,
+	distanceMi: number,
+	eventPayMin: number | null,
+	eventPayMax: number | null,
+	eventGenres: string[]
+): boolean {
+	const distanceFilter = filters?.distance;
+	const effectiveRadius = distanceFilter?.enabled ? distanceFilter.max_miles ?? NEARBY_EVENT_DEFAULT_RADIUS_MILES : NEARBY_EVENT_DEFAULT_RADIUS_MILES;
+	if (distanceMi > effectiveRadius) return false;
+
+	const payFilter = filters?.pay;
+	if (payFilter?.enabled) {
+		const offered = eventPayMax ?? eventPayMin;
+		if (offered == null || offered < (payFilter.min_pay ?? 0)) return false;
+	}
+
+	const genreFilter = filters?.genres;
+	if (genreFilter?.enabled) {
+		const wanted = genreFilter.values ?? [];
+		if (wanted.length === 0 || !eventGenres.some((g) => wanted.includes(g))) return false;
+	}
+
+	return true;
+}
 
 // Same bounding-box prefilter + precise Haversine recheck used by the
 // "local" feed and the map pages — see src/lib/server/geo.ts.
@@ -75,7 +116,10 @@ export async function notifyNearbyUsersOfEvent(
 	hostName: string,
 	eventTitle: string,
 	eventDate: string,
-	origin: string
+	origin: string,
+	eventPayMin: number | null = null,
+	eventPayMax: number | null = null,
+	eventGenres: string[] = []
 ): Promise<void> {
 	try {
 		const admin = supabaseAdmin();
@@ -85,30 +129,35 @@ export async function notifyNearbyUsersOfEvent(
 			.eq('id', hostId)
 			.maybeSingle<{ location_lat: number | null; location_lng: number | null }>();
 		if (!host?.location_lat || !host?.location_lng) return; // can't determine "nearby" without a location
+		const hostLat = host.location_lat;
+		const hostLng = host.location_lng;
 
 		let query = admin
 			.from('profiles')
-			.select('id, location_lat, location_lng')
+			.select('id, location_lat, location_lng, notification_preferences')
 			.eq('discoverable', true)
 			.neq('id', hostId)
 			.not('location_lat', 'is', null)
 			.not('location_lng', 'is', null);
-		query = applyBoundingBox(query, boundingBoxForRadius(host.location_lat, host.location_lng, NEARBY_EVENT_RADIUS_MILES));
+		query = applyBoundingBox(query, boundingBoxForRadius(hostLat, hostLng, NEARBY_EVENT_MAX_RADIUS_MILES));
 		const { data: candidates } = await query;
 
-		const nearby = withinRadius(candidates ?? [], host.location_lat, host.location_lng, NEARBY_EVENT_RADIUS_MILES);
-		if (nearby.length === 0) return;
+		const inBoundingBox = withinRadius(candidates ?? [], hostLat, hostLng, NEARBY_EVENT_MAX_RADIUS_MILES);
+		if (inBoundingBox.length === 0) return;
 
 		const profileUrl = `${origin}/profile/${hostId}`;
 		const { subject, html } = nearbyEventEmail(hostName, eventTitle, eventDate, profileUrl);
 
 		await Promise.all(
-			nearby.map((p: any) =>
-				notify(p.id, 'nearby_event', {
+			inBoundingBox.map((p: any) => {
+				const distanceMi = distanceMiles(hostLat, hostLng, p.location_lat, p.location_lng);
+				const filters: NearbyEventFilters | undefined = p.notification_preferences?.nearby_event?.filters;
+				if (!passesNearbyEventFilters(filters, distanceMi, eventPayMin, eventPayMax, eventGenres)) return undefined;
+				return notify(p.id, 'nearby_event', {
 					inApp: { title: `New event near you: ${eventTitle}`, body: `Hosted by ${hostName}`, link: `/profile/${hostId}` },
 					email: { subject, html }
-				})
-			)
+				});
+			})
 		);
 	} catch (err) {
 		console.error('notifyNearbyUsersOfEvent failed', err);
