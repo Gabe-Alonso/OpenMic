@@ -1,6 +1,7 @@
 import { error, fail, redirect } from '@sveltejs/kit';
 import { notify } from '$lib/server/notify';
 import {
+	escapeHtml,
 	slotApplicationDecidedEmail,
 	slotOfferEmail
 } from '$lib/server/email';
@@ -38,11 +39,34 @@ export const load: PageServerLoad = async ({ params, url, locals: { supabase, sa
 async function loadEventAndVerifyOwner(supabase: any, eventId: string, userId: string) {
 	const { data: event } = await supabase
 		.from('venue_events')
-		.select('id, title, profile_id')
+		.select('id, title, date, profile_id')
 		.eq('id', eventId)
 		.eq('profile_id', userId)
 		.maybeSingle();
-	return event as { id: string; title: string; profile_id: string } | null;
+	return event as { id: string; title: string; date: string; profile_id: string } | null;
+}
+
+// A slot is always created 'open' — there's no path to create one already
+// reserved or filled — so every successful addSlot is exactly the moment a
+// slot "opens publicly." Posting as the venue's own account, through its
+// own session client, is a plain self-authored insert: no RLS bypass, no
+// admin client, same as if the venue had typed this into the compose box.
+// It deliberately skips post/new's compose-rate-limit — addSlot has no rate
+// limit of its own either, and a venue opening slots isn't the spam vector
+// that rate limit exists for.
+async function postSlotOpenedAnnouncement(
+	supabase: any,
+	venueId: string,
+	event: { title: string; date: string },
+	startTime: string | null,
+	endTime: string | null
+) {
+	const title = escapeHtml(event.title);
+	const date = escapeHtml(event.date);
+	const timeRange = startTime ? ` at ${escapeHtml(startTime)}${endTime ? `–${escapeHtml(endTime)}` : ''}` : '';
+	const body = `<p>🎤 New open slot for <strong>${title}</strong> on ${date}${timeRange} — head to our profile to apply!</p>`;
+	const { error: postError } = await supabase.from('posts').insert({ author_id: venueId, body });
+	if (postError) console.error('postSlotOpenedAnnouncement failed', postError);
 }
 
 export const actions: Actions = {
@@ -63,6 +87,9 @@ export const actions: Actions = {
 			end_time: endTime
 		});
 		if (insertErr) return fail(500, { slotError: insertErr.message });
+
+		await postSlotOpenedAnnouncement(supabase, user.id, event, startTime, endTime);
+
 		return { slotAdded: true };
 	},
 
