@@ -1,5 +1,6 @@
 import type { PageServerLoad } from './$types';
 import { paginateRows } from '$lib/server/pagination';
+import { embedEngagement } from '$lib/server/feed';
 
 const PAGE_SIZE = 20;
 
@@ -30,34 +31,18 @@ export const load: PageServerLoad = async ({ locals: { supabase, safeGetSession 
 		.limit(PAGE_SIZE + 1);
 
 	const { page: postsData, nextCursor } = paginateRows(posts ?? [], PAGE_SIZE);
-	const likeCounts: Record<string, number> = {};
-	const commentCounts: Record<string, number> = {};
-
-	if (postsData.length > 0) {
-		const ids = postsData.map((p) => p.id);
-		const [{ data: likes }, { data: comments }] = await Promise.all([
-			supabase.from('post_likes').select('post_id').in('post_id', ids),
-			supabase.from('post_comments').select('post_id').in('post_id', ids)
-		]);
-		for (const like of likes ?? []) {
-			likeCounts[like.post_id] = (likeCounts[like.post_id] ?? 0) + 1;
-		}
-		for (const comment of comments ?? []) {
-			commentCounts[comment.post_id] = (commentCounts[comment.post_id] ?? 0) + 1;
-		}
-	}
+	const embedded = await embedEngagement(supabase, postsData, user?.id);
 
 	// Sort by engagement score (comments weighted 1.5x — takes more effort than a like)
-	postsData.sort((a, b) => {
-		const scoreA = (likeCounts[a.id] ?? 0) + (commentCounts[a.id] ?? 0) * 1.5;
-		const scoreB = (likeCounts[b.id] ?? 0) + (commentCounts[b.id] ?? 0) * 1.5;
+	embedded.sort((a, b) => {
+		const scoreA = a.likeCount + a.commentCount * 1.5;
+		const scoreB = b.likeCount + b.commentCount * 1.5;
 		return scoreB - scoreA;
 	});
 
 	return {
-		discoverPosts: postsData,
+		discoverPosts: embedded,
 		discoverNextCursor: nextCursor,
-		likeCounts,
 		isSignedIn: !!user,
 		userHasLocation
 	};

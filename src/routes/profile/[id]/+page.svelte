@@ -13,8 +13,8 @@
 
 	const profile = $derived(data.profile);
 
-	let userFollows = $state(data.userFollows);
-	let followerCount = $state(data.followerCount);
+	let userFollows = $state(untrack(() => data.userFollows));
+	let followerCount = $state(untrack(() => data.followerCount));
 	let toggling = $state(false);
 	let followBtnHovered = $state(false);
 

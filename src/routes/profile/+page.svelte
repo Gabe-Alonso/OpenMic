@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { untrack } from 'svelte';
 	import { enhance } from '$app/forms';
 	import { invalidateAll } from '$app/navigation';
 	import { createClient } from '$lib/supabase';
@@ -13,9 +14,9 @@
 	const supabase = createClient();
 	const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50 MB
 
-	let profileTags = $state<string[]>(data.profile?.tags ?? []);
-	let profileType = $state<string>((data.profile as any)?.profile_type ?? 'artist');
-	let artistRoles = $state<string[]>((data.profile as any)?.artist_roles ?? []);
+	let profileTags = $state<string[]>(untrack(() => data.profile?.tags ?? []));
+	let profileType = $state<string>(untrack(() => (data.profile as any)?.profile_type ?? 'artist'));
+	let artistRoles = $state<string[]>(untrack(() => (data.profile as any)?.artist_roles ?? []));
 
 	const ARTIST_ROLES = ['Instrumentalist', 'Producer', 'Composer', 'Sound Tech', 'Other'];
 
@@ -53,7 +54,7 @@
 
 	// Nearby-event notification filters — off by default, seeded once from
 	// whatever's already saved.
-	const existingEventFilters = (data.profile as any)?.notification_preferences?.nearby_event?.filters ?? {};
+	const existingEventFilters = untrack(() => (data.profile as any)?.notification_preferences?.nearby_event?.filters ?? {});
 	let showEventFilters = $state(false);
 	let filterDistanceEnabled = $state(existingEventFilters.distance?.enabled ?? false);
 	let filterDistanceMiles = $state(existingEventFilters.distance?.max_miles ?? 50);

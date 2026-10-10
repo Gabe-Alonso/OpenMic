@@ -1,10 +1,11 @@
 <script lang="ts">
+	import { untrack } from 'svelte';
 	import { enhance } from '$app/forms';
 	import type { PageData, ActionData } from './$types';
 
 	let { data, form }: { data: PageData; form: ActionData } = $props();
 
-	const event = data.offer.slot?.event ?? null;
+	const event = untrack(() => data.offer.slot?.event ?? null);
 	const venue = event?.venue ?? null;
 
 	function formatTime(t: string | null): string {

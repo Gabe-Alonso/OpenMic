@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { timeAgo } from '$lib/format';
 	import { goto, invalidateAll } from '$app/navigation';
+	import { page } from '$app/stores';
 	import { untrack } from 'svelte';
 	import MediaCarousel from '$lib/components/MediaCarousel.svelte';
 	import RichTextEditor from '$lib/components/RichTextEditor.svelte';
@@ -116,6 +117,31 @@
 		liking = false;
 	}
 
+	// Repost state — same seed-once / optimistic-update pattern as likes above.
+	let repostCount = $state(untrack(() => data.repostCount));
+	let userReposted = $state(untrack(() => data.userReposted));
+	let reposting = $state(false);
+
+	async function toggleRepost() {
+		if (reposting) return;
+		reposting = true;
+		const wasReposted = userReposted;
+		userReposted = !wasReposted;
+		repostCount += wasReposted ? -1 : 1;
+
+		const res = await fetch(`/api/posts/${post.id}/repost`, { method: 'POST' });
+		if (res.ok) {
+			const json = await res.json();
+			repostCount = json.count;
+			userReposted = json.reposted;
+		} else {
+			userReposted = wasReposted;
+			repostCount += wasReposted ? 1 : -1;
+			if (res.status === 401) goto('/signin');
+		}
+		reposting = false;
+	}
+
 	async function share() {
 		const url = window.location.href;
 		try {
@@ -182,7 +208,10 @@
 		submittingReport = false;
 	}
 
-	let showComments = $state(false);
+	// Arriving via the comment button on a feed card (?comments=1) opens
+	// straight to the comments section instead of landing on a collapsed one
+	// the visitor then has to find and click open themselves.
+	let showComments = $state(untrack(() => $page.url.searchParams.get('comments') === '1'));
 	let comments = $state<CommentData[]>([]);
 	let loadingComments = $state(false);
 	let commentText = $state('');
@@ -204,6 +233,10 @@
 		const res = await fetch(`/api/posts/${post.id}/comments`);
 		if (res.ok) comments = await res.json();
 		loadingComments = false;
+	}
+
+	if (untrack(() => showComments && commentCount > 0)) {
+		fetchComments();
 	}
 
 	async function submitComment(e: SubmitEvent) {
@@ -391,6 +424,21 @@
 					{/if}
 				</div>
 
+				<div class="repost-group">
+					<button
+						class="repost-btn"
+						class:reposted={userReposted}
+						onclick={toggleRepost}
+						disabled={reposting}
+						aria-label={userReposted ? 'Un-repost' : 'Repost'}
+					>
+						<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+							<path d="m17 2 4 4-4 4" /><path d="M3 11v-1a4 4 0 0 1 4-4h14" /><path d="m7 22-4-4 4-4" /><path d="M21 13v1a4 4 0 0 1-4 4H3" />
+						</svg>
+					</button>
+					<span class="repost-count">{repostCount}</span>
+				</div>
+
 				<div class="comment-group">
 					<button class="comment-btn" class:active={showComments} onclick={toggleComments} aria-label="Comments">
 						<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -424,16 +472,16 @@
 						class:reported
 						disabled={reported}
 						onclick={() => (showReportModal = true)}
+						aria-label={reported ? 'Already reported' : 'Report this post'}
 						title={reported ? 'Already reported' : 'Report this post'}
 					>
-						<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+						<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
 							<path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/>
 						</svg>
-						{reported ? 'Reported' : 'Report'}
 					</button>
 				{/if}
 
-				<button class="share-btn" onclick={share} class:share-copied={copied}>
+				<button class="share-btn" onclick={share} class:share-copied={copied} aria-label={copied ? 'Link copied' : 'Share'} title={copied ? 'Link copied' : 'Share'}>
 					{#if copied}
 						<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
 							<polyline points="20 6 9 17 4 12" />
@@ -782,7 +830,8 @@
 	}
 
 	.post-date {
-		font-size: 0.8rem;
+		font-family: var(--font-display);
+		font-size: 0.85rem;
 		color: var(--color-text-muted);
 		flex-shrink: 0;
 	}
@@ -887,11 +936,14 @@
 		padding: 36px;
 	}
 
-	/* Rich text content */
+	/* Rich text content — same display font/weight as the community feed's
+	   preview text and the Discover tab's "Top post" card, just not scaled
+	   all the way up to hero size. */
 	.post-content :global(p) {
 		margin: 0 0 1em;
-		font-size: 0.95rem;
-		line-height: 1.7;
+		font-family: var(--font-display);
+		font-size: 1.0625rem;
+		line-height: 1.6;
 		color: var(--color-text);
 	}
 
@@ -900,6 +952,7 @@
 	}
 
 	.post-content :global(h2) {
+		font-family: var(--font-display);
 		font-size: 1.15rem;
 		font-weight: 700;
 		margin: 0 0 0.6em;
@@ -910,8 +963,9 @@
 	.post-content :global(ol) {
 		padding-left: 1.4em;
 		margin: 0 0 1em;
-		font-size: 0.95rem;
-		line-height: 1.7;
+		font-family: var(--font-display);
+		font-size: 1.0625rem;
+		line-height: 1.6;
 	}
 
 	.post-content :global(strong) { font-weight: 700; }
@@ -927,8 +981,8 @@
 	.post-actions {
 		display: flex;
 		align-items: center;
-		gap: 4px;
-		padding: 12px 20px;
+		gap: 2px;
+		padding: 12px 16px;
 		border-top: 1px solid var(--color-border);
 		background: var(--color-surface);
 	}
@@ -936,23 +990,23 @@
 	.actions-right {
 		display: flex;
 		align-items: center;
-		gap: 4px;
+		gap: 2px;
 		margin-left: auto;
 	}
 
 	.like-group {
 		display: flex;
 		align-items: center;
-		gap: 4px;
-		margin-right: 8px;
+		gap: 2px;
+		margin-right: 4px;
 	}
 
 	.like-btn {
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		width: 48px;
-		height: 48px;
+		width: 40px;
+		height: 40px;
 		border-radius: 50%;
 		border: none;
 		background: none;
@@ -981,6 +1035,7 @@
 	.like-count-btn {
 		background: none;
 		border: none;
+		font-family: var(--font-display);
 		font-size: 0.875rem;
 		font-weight: 600;
 		color: var(--color-text-muted);
@@ -998,6 +1053,7 @@
 	}
 
 	.like-count-zero {
+		font-family: var(--font-display);
 		font-size: 0.875rem;
 		font-weight: 600;
 		color: var(--color-text-muted);
@@ -1007,26 +1063,24 @@
 	.report-btn {
 		display: flex;
 		align-items: center;
-		gap: 6px;
+		justify-content: center;
+		width: 36px;
+		height: 36px;
+		flex-shrink: 0;
 		background: none;
-		border: 1.5px solid var(--color-border-strong);
-		border-radius: var(--radius-pill);
-		padding: 7px 14px;
-		font-size: 0.8rem;
-		font-weight: 600;
+		border: none;
+		border-radius: 50%;
 		color: var(--color-text-muted);
 		cursor: pointer;
-		transition: border-color 0.15s, color 0.15s, background 0.15s;
+		transition: color 0.15s, background 0.15s;
 	}
 
 	.report-btn:hover:not(:disabled) {
-		border-color: var(--color-danger-border);
 		color: var(--color-danger);
 		background: var(--color-danger-bg);
 	}
 
 	.report-btn.reported {
-		border-color: var(--color-danger-border);
 		color: var(--color-danger);
 		cursor: default;
 	}
@@ -1076,27 +1130,24 @@
 	.share-btn {
 		display: flex;
 		align-items: center;
-		gap: 6px;
-		margin-left: auto;
+		justify-content: center;
+		width: 36px;
+		height: 36px;
+		flex-shrink: 0;
 		background: none;
-		border: 1.5px solid var(--color-border-strong);
-		border-radius: var(--radius-pill);
-		padding: 7px 14px;
-		font-size: 0.8rem;
-		font-weight: 600;
+		border: none;
+		border-radius: 50%;
 		color: var(--color-text-muted);
 		cursor: pointer;
-		transition: border-color 0.15s, color 0.15s, background 0.15s;
+		transition: color 0.15s, background 0.15s;
 	}
 
 	.share-btn:hover {
-		border-color: var(--color-lilac);
 		color: var(--color-primary-deep);
 		background: var(--color-primary-light);
 	}
 
 	.share-btn.share-copied {
-		border-color: #16a34a;
 		color: #16a34a;
 		background: #f0fdf4;
 	}
@@ -1211,19 +1262,65 @@
 		font-weight: 500;
 	}
 
+	/* Repost button in action bar */
+	.repost-group {
+		display: flex;
+		align-items: center;
+		gap: 2px;
+		margin-right: 4px;
+	}
+
+	.repost-btn {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: 40px;
+		height: 40px;
+		border-radius: 50%;
+		border: none;
+		background: none;
+		color: var(--color-text-muted);
+		cursor: pointer;
+		transition: color 0.15s, background 0.15s, transform 0.1s;
+	}
+
+	.repost-btn:hover,
+	.repost-btn.reposted {
+		color: #16a34a;
+		background: #f0fdf4;
+	}
+
+	.repost-btn:active {
+		transform: scale(0.88);
+	}
+
+	.repost-btn:disabled {
+		cursor: default;
+	}
+
+	.repost-count {
+		font-family: var(--font-display);
+		font-size: 0.875rem;
+		font-weight: 600;
+		color: var(--color-text-muted);
+		padding: 4px 6px;
+		min-width: 16px;
+	}
+
 	/* Comment button in action bar */
 	.comment-group {
 		display: flex;
 		align-items: center;
-		gap: 4px;
+		gap: 2px;
+		margin-right: 4px;
 	}
 
 	.comment-btn {
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		width: 48px;
-		height: 48px;
+		width: 40px;
+		height: 40px;
 		border-radius: 50%;
 		border: none;
 		background: none;
@@ -1239,6 +1336,7 @@
 	}
 
 	.comment-count {
+		font-family: var(--font-display);
 		font-size: 0.875rem;
 		font-weight: 600;
 		color: var(--color-text-muted);

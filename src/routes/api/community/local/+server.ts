@@ -2,6 +2,7 @@ import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { boundingBoxForRadius, applyBoundingBox, withinRadius } from '$lib/server/geo';
 import { decodeCursor, applyCursor, paginateRows } from '$lib/server/pagination';
+import { embedEngagement } from '$lib/server/feed';
 
 const PAGE_SIZE = 20;
 
@@ -16,7 +17,7 @@ export const GET: RequestHandler = async ({ url, locals: { supabase, safeGetSess
 		.single();
 
 	if (!userProfile?.location_lat || !userProfile?.location_lng) {
-		return json({ noLocation: true, posts: [], likeCounts: {}, nextCursor: null });
+		return json({ noLocation: true, posts: [], nextCursor: null });
 	}
 
 	const radius = parseInt(url.searchParams.get('radius') ?? '50');
@@ -34,7 +35,7 @@ export const GET: RequestHandler = async ({ url, locals: { supabase, safeGetSess
 		.map((p) => p.id);
 
 	if (nearbyIds.length === 0) {
-		return json({ noLocation: false, posts: [], likeCounts: {}, nextCursor: null });
+		return json({ noLocation: false, posts: [], nextCursor: null });
 	}
 
 	let postsQuery = supabase
@@ -48,17 +49,7 @@ export const GET: RequestHandler = async ({ url, locals: { supabase, safeGetSess
 
 	const { data: posts } = await postsQuery;
 	const { page: postsData, nextCursor } = paginateRows(posts ?? [], PAGE_SIZE);
-	const likeCounts: Record<string, number> = {};
+	const embedded = await embedEngagement(supabase, postsData, user.id);
 
-	if (postsData.length > 0) {
-		const { data: likes } = await supabase
-			.from('post_likes')
-			.select('post_id')
-			.in('post_id', postsData.map((p) => p.id));
-		for (const like of likes ?? []) {
-			likeCounts[like.post_id] = (likeCounts[like.post_id] ?? 0) + 1;
-		}
-	}
-
-	return json({ noLocation: false, posts: postsData, likeCounts, nextCursor });
+	return json({ noLocation: false, posts: embedded, nextCursor });
 };
