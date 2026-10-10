@@ -472,16 +472,16 @@
 						class:reported
 						disabled={reported}
 						onclick={() => (showReportModal = true)}
+						aria-label={reported ? 'Already reported' : 'Report this post'}
 						title={reported ? 'Already reported' : 'Report this post'}
 					>
-						<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+						<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
 							<path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/>
 						</svg>
-						{reported ? 'Reported' : 'Report'}
 					</button>
 				{/if}
 
-				<button class="share-btn" onclick={share} class:share-copied={copied}>
+				<button class="share-btn" onclick={share} class:share-copied={copied} aria-label={copied ? 'Link copied' : 'Share'} title={copied ? 'Link copied' : 'Share'}>
 					{#if copied}
 						<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
 							<polyline points="20 6 9 17 4 12" />
@@ -981,8 +981,8 @@
 	.post-actions {
 		display: flex;
 		align-items: center;
-		gap: 4px;
-		padding: 12px 20px;
+		gap: 2px;
+		padding: 12px 16px;
 		border-top: 1px solid var(--color-border);
 		background: var(--color-surface);
 	}
@@ -990,23 +990,23 @@
 	.actions-right {
 		display: flex;
 		align-items: center;
-		gap: 4px;
+		gap: 2px;
 		margin-left: auto;
 	}
 
 	.like-group {
 		display: flex;
 		align-items: center;
-		gap: 4px;
-		margin-right: 8px;
+		gap: 2px;
+		margin-right: 4px;
 	}
 
 	.like-btn {
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		width: 48px;
-		height: 48px;
+		width: 40px;
+		height: 40px;
 		border-radius: 50%;
 		border: none;
 		background: none;
@@ -1063,26 +1063,24 @@
 	.report-btn {
 		display: flex;
 		align-items: center;
-		gap: 6px;
+		justify-content: center;
+		width: 36px;
+		height: 36px;
+		flex-shrink: 0;
 		background: none;
-		border: 1.5px solid var(--color-border-strong);
-		border-radius: var(--radius-pill);
-		padding: 7px 14px;
-		font-size: 0.8rem;
-		font-weight: 600;
+		border: none;
+		border-radius: 50%;
 		color: var(--color-text-muted);
 		cursor: pointer;
-		transition: border-color 0.15s, color 0.15s, background 0.15s;
+		transition: color 0.15s, background 0.15s;
 	}
 
 	.report-btn:hover:not(:disabled) {
-		border-color: var(--color-danger-border);
 		color: var(--color-danger);
 		background: var(--color-danger-bg);
 	}
 
 	.report-btn.reported {
-		border-color: var(--color-danger-border);
 		color: var(--color-danger);
 		cursor: default;
 	}
@@ -1132,27 +1130,24 @@
 	.share-btn {
 		display: flex;
 		align-items: center;
-		gap: 6px;
-		margin-left: auto;
+		justify-content: center;
+		width: 36px;
+		height: 36px;
+		flex-shrink: 0;
 		background: none;
-		border: 1.5px solid var(--color-border-strong);
-		border-radius: var(--radius-pill);
-		padding: 7px 14px;
-		font-size: 0.8rem;
-		font-weight: 600;
+		border: none;
+		border-radius: 50%;
 		color: var(--color-text-muted);
 		cursor: pointer;
-		transition: border-color 0.15s, color 0.15s, background 0.15s;
+		transition: color 0.15s, background 0.15s;
 	}
 
 	.share-btn:hover {
-		border-color: var(--color-lilac);
 		color: var(--color-primary-deep);
 		background: var(--color-primary-light);
 	}
 
 	.share-btn.share-copied {
-		border-color: #16a34a;
 		color: #16a34a;
 		background: #f0fdf4;
 	}
@@ -1271,16 +1266,16 @@
 	.repost-group {
 		display: flex;
 		align-items: center;
-		gap: 4px;
-		margin-right: 8px;
+		gap: 2px;
+		margin-right: 4px;
 	}
 
 	.repost-btn {
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		width: 48px;
-		height: 48px;
+		width: 40px;
+		height: 40px;
 		border-radius: 50%;
 		border: none;
 		background: none;
@@ -1316,15 +1311,16 @@
 	.comment-group {
 		display: flex;
 		align-items: center;
-		gap: 4px;
+		gap: 2px;
+		margin-right: 4px;
 	}
 
 	.comment-btn {
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		width: 48px;
-		height: 48px;
+		width: 40px;
+		height: 40px;
 		border-radius: 50%;
 		border: none;
 		background: none;
