@@ -116,20 +116,23 @@
 		return m ? `https://img.youtube.com/vi/${m[1]}/mqdefault.jpg` : null;
 	}
 
-	const previewText = stripHtml(post.body);
+	// post is keyed per instance (every {#each} using PostCard keys by
+	// post.id), so these only ever need to be computed once at mount, not
+	// re-derived if the prop object identity changes.
+	const previewText = untrack(() => stripHtml(post.body));
 
-	const sortedMedia = [...(post.post_media ?? [])].sort((a, b) => a.order_index - b.order_index);
+	const sortedMedia = untrack(() => [...(post.post_media ?? [])].sort((a, b) => a.order_index - b.order_index));
 	const images = sortedMedia.filter((m) => m.media_type === 'image');
 
 	// Build up to 2 thumbnail sources: uploaded images first, then YouTube thumbnail as fallback
 	const thumbs: string[] = images.slice(0, 2).map((m) => m.url);
-	if (thumbs.length < 2 && post.youtube_url) {
-		const yt = getYoutubeThumbnail(post.youtube_url);
+	if (thumbs.length < 2) {
+		const yt = untrack(() => (post.youtube_url ? getYoutubeThumbnail(post.youtube_url) : null));
 		if (yt) thumbs.push(yt);
 	}
 
 	const hasMedia = thumbs.length > 0;
-	const postCardTags = (post.tags ?? []).slice(0, 3);
+	const postCardTags = untrack(() => (post.tags ?? []).slice(0, 3));
 
 	function goToTag(e: MouseEvent, tag: string) {
 		e.preventDefault();

@@ -27,6 +27,7 @@
 </script>
 
 <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
+<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
 <div class="carousel" role="group" aria-label="Media carousel" tabindex={0} onkeydown={onKeydown}>
 	{#each items as item, i}
 		{#if i === current}

@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { onMount, onDestroy, tick } from 'svelte';
+	import { onMount, onDestroy, tick, untrack } from 'svelte';
 	import { invalidateAll } from '$app/navigation';
 	import { createBrowserClient } from '@supabase/ssr';
 	import { PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY } from '$env/static/public';
@@ -8,8 +8,8 @@
 
 	let { data }: { data: PageData } = $props();
 
-	let messages = $state(data.messages as any[]);
-	let convo = $state(data.conversation);
+	let messages = $state(untrack(() => data.messages as any[]));
+	let convo = $state(untrack(() => data.conversation));
 	let text = $state('');
 	let sending = $state(false);
 	let sendError = $state<string | null>(null);
@@ -291,7 +291,7 @@
 					{/if}
 					<div class="bubble" class:mine={isMine}>
 						{#if msg.message_type === 'image'}
-							<img src={msg.image_url} alt="Sent image" class="msg-img" />
+							<img src={msg.image_url} alt="" class="msg-img" />
 						{:else if msg.message_type === 'youtube'}
 							<div class="yt-wrap">
 								<iframe
