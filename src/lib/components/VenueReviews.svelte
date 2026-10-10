@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { untrack } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { timeAgo } from '$lib/format';
 	import StarRating from './StarRating.svelte';
@@ -13,7 +14,11 @@
 	let { venueProfileId, seededVenueId, currentUserId, canReview }: Props = $props();
 
 	const PREVIEW_COUNT = 3;
-	const query = venueProfileId ? `venue_profile_id=${venueProfileId}` : `seeded_venue_id=${seededVenueId}`;
+	// Fixed for the lifetime of this component instance — it's keyed per venue
+	// page, not meant to follow a prop change mid-mount.
+	const query = untrack(() =>
+		venueProfileId ? `venue_profile_id=${venueProfileId}` : `seeded_venue_id=${seededVenueId}`
+	);
 
 	let loading = $state(true);
 	let average = $state<number | null>(null);

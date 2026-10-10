@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { onMount, onDestroy } from 'svelte';
+	import { onMount, onDestroy, untrack } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
 	import type { LayoutData } from './$types';
@@ -18,8 +18,10 @@
 		{ href: '/about', label: 'About', match: (p: string) => p.startsWith('/about') }
 	];
 
-	// Live unread count — initialised from server, updated by Realtime
-	let liveUnreadCount = $state(data.unreadCount ?? 0);
+	// Live unread count — initialised from server, updated by Realtime. The
+	// $effect below re-syncs this from `data` on every subsequent load, so the
+	// initializer here only ever needs the value at mount.
+	let liveUnreadCount = $state(untrack(() => data.unreadCount ?? 0));
 
 	// Sync back to server value whenever the layout server load re-runs (e.g. after invalidateAll)
 	$effect(() => {
@@ -63,8 +65,9 @@
 		realtimeChannel?.unsubscribe();
 	});
 
-	// Live notification count + dropdown — initialised from server, updated by Realtime
-	let liveUnreadNotifCount = $state(data.unreadNotificationCount ?? 0);
+	// Live notification count + dropdown — initialised from server, updated by
+	// Realtime; same re-sync-via-$effect pattern as liveUnreadCount above.
+	let liveUnreadNotifCount = $state(untrack(() => data.unreadNotificationCount ?? 0));
 	$effect(() => {
 		liveUnreadNotifCount = data.unreadNotificationCount ?? 0;
 	});

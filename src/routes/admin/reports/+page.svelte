@@ -1,10 +1,11 @@
 <script lang="ts">
+	import { untrack } from 'svelte';
 	import { stripHtml, timeAgo } from '$lib/format';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
 
-	let reports = $state(data.reports);
+	let reports = $state(untrack(() => data.reports));
 	let busyId = $state<string | null>(null);
 	let confirmRemoveId = $state<string | null>(null);
 

@@ -1,10 +1,11 @@
 <script lang="ts">
+	import { untrack } from 'svelte';
 	import { timeAgo } from '$lib/format';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
 
-	let claims = $state(data.claims);
+	let claims = $state(untrack(() => data.claims));
 	let busyId = $state<string | null>(null);
 
 	async function act(claimId: string, action: 'approve' | 'reject') {

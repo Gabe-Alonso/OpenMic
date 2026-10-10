@@ -18,9 +18,11 @@
 
 	// --- Discover tab ---
 	// Seeded from the server-rendered first page; "Load more" pages forward
-	// from there using a cursor instead of re-fetching everything.
+	// from there using a cursor instead of re-fetching everything. Each post
+	// object now carries its own likeCount/commentCount/repostCount/
+	// likedByMe/repostedByMe fields (embedded server-side), so there's no
+	// separate per-tab count map to keep in sync anymore.
 	let discoverPosts = $state<any[]>(untrack(() => data.discoverPosts));
-	let discoverLikeCounts = $state<Record<string, number>>(untrack(() => data.likeCounts));
 	let discoverCursor = $state<string | null>(untrack(() => data.discoverNextCursor));
 	let discoverLoadingMore = $state(false);
 
@@ -29,14 +31,12 @@
 	let localRadius = $state(50);
 	let localLoading = $state(false);
 	let localPosts = $state<any[] | null>(null);
-	let localLikeCounts = $state<Record<string, number>>({});
 	let localCursor = $state<string | null>(null);
 	let localLoadingMore = $state(false);
 
 	// --- Following tab ---
 	let followingLoading = $state(false);
 	let followingPosts = $state<any[] | null>(null);
-	let followingLikeCounts = $state<Record<string, number>>({});
 	let followingCursor = $state<string | null>(null);
 	let followingLoadingMore = $state(false);
 	let includeFollowers = $state(false);
@@ -48,7 +48,6 @@
 		if (res.ok) {
 			const json = await res.json();
 			discoverPosts = [...discoverPosts, ...(json.posts ?? [])];
-			discoverLikeCounts = { ...discoverLikeCounts, ...(json.likeCounts ?? {}) };
 			discoverCursor = json.nextCursor ?? null;
 		}
 		discoverLoadingMore = false;
@@ -61,7 +60,6 @@
 		if (res.ok) {
 			const json = await res.json();
 			localPosts = json.posts ?? [];
-			localLikeCounts = json.likeCounts ?? {};
 			localCursor = json.nextCursor ?? null;
 		}
 		localLoading = false;
@@ -74,7 +72,6 @@
 		if (res.ok) {
 			const json = await res.json();
 			localPosts = [...(localPosts ?? []), ...(json.posts ?? [])];
-			localLikeCounts = { ...localLikeCounts, ...(json.likeCounts ?? {}) };
 			localCursor = json.nextCursor ?? null;
 		}
 		localLoadingMore = false;
@@ -87,7 +84,6 @@
 		if (res.ok) {
 			const json = await res.json();
 			followingPosts = json.posts ?? [];
-			followingLikeCounts = json.likeCounts ?? {};
 			followingCursor = json.nextCursor ?? null;
 		} else if (res.status === 401) {
 			goto('/signin');
@@ -102,7 +98,6 @@
 		if (res.ok) {
 			const json = await res.json();
 			followingPosts = [...(followingPosts ?? []), ...(json.posts ?? [])];
-			followingLikeCounts = { ...followingLikeCounts, ...(json.likeCounts ?? {}) };
 			followingCursor = json.nextCursor ?? null;
 		}
 		followingLoadingMore = false;
@@ -221,7 +216,7 @@
 								<span>{timeAgo(featuredPost.created_at)}</span>
 								<span class="featured-likes">
 									<svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></svg>
-									{discoverLikeCounts[featuredPost.id] ?? 0}
+									{featuredPost.likeCount ?? 0}
 								</span>
 							</div>
 						</div>
@@ -235,7 +230,7 @@
 					</a>
 				{/if}
 				{#each restPosts as post (post.id)}
-					<PostCard {post} likeCount={discoverLikeCounts[post.id] ?? 0} showAuthor={true} />
+					<PostCard {post} showAuthor={true} />
 				{/each}
 			</div>
 			{#if discoverCursor}
@@ -277,7 +272,7 @@
 		{:else if localPosts !== null}
 			<div class="feed">
 				{#each localPosts as post (post.id)}
-					<PostCard {post} likeCount={localLikeCounts[post.id] ?? 0} showAuthor={true} />
+					<PostCard {post} showAuthor={true} />
 				{/each}
 			</div>
 			{#if localCursor}
@@ -312,7 +307,7 @@
 		{:else if followingPosts !== null}
 			<div class="feed">
 				{#each followingPosts as post (post.id)}
-					<PostCard {post} likeCount={followingLikeCounts[post.id] ?? 0} showAuthor={true} />
+					<PostCard {post} showAuthor={true} />
 				{/each}
 			</div>
 			{#if followingCursor}
@@ -326,7 +321,7 @@
 
 <style>
 	.community-page {
-		max-width: 720px;
+		max-width: 640px;
 		margin: 0 auto;
 		display: flex;
 		flex-direction: column;
